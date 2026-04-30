@@ -20,8 +20,8 @@ dependencies:
   http: ^1.2.2
   dio: ^5.7.0
 
-  # 온디바이스 AI (ML Kit)
-  google_mlkit_image_labeling: ^0.13.0
+  # 온디바이스 AI (TFLite)
+  tflite_flutter: ^0.11.0
 
   # 상태 관리
   provider: ^6.1.2
@@ -56,3 +56,4 @@ flutter:
     - assets/images/
     - assets/icons/
     - assets/animations/
+    - assets/ml/
