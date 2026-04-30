@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../data/models/ingredient.dart';
 import '../../../data/services/food_classifier.dart';
+import '../../../data/services/quantity_estimator.dart';
 import '../../refrigerator/widgets/add_ingredient_sheet.dart';
 
 class CameraScreen extends StatefulWidget {
@@ -16,18 +17,22 @@ class CameraScreen extends StatefulWidget {
 class _CameraScreenState extends State<CameraScreen> {
   final ImagePicker _picker = ImagePicker();
   final FoodClassifier _classifier = FoodClassifier();
+  final QuantityEstimator _estimator = QuantityEstimator();
   File? _selectedImage;
   bool _isAnalyzing = false;
   List<FoodPrediction> _predictions = [];
+  Map<String, double?> _quantities = {};
 
   @override
   void initState() {
     super.initState();
     _classifier.load();
+    _estimator.load().catchError((_) {});
   }
 
   @override
   void dispose() {
+    _estimator.close();
     _classifier.close();
     super.dispose();
   }
@@ -96,6 +101,7 @@ class _CameraScreenState extends State<CameraScreen> {
               const SizedBox(height: 12),
               ..._predictions.map((p) => _PredictionTile(
                     prediction: p,
+                    quantity: _quantities[p.koreanName],
                     onAdd: () => _addToFridge(context, p),
                   )),
             ],
@@ -123,7 +129,17 @@ class _CameraScreenState extends State<CameraScreen> {
 
     try {
       final results = await _classifier.classify(_selectedImage!);
-      setState(() => _predictions = results);
+
+      // 양추정 모델이 있으면 각 식재료 수량 추정
+      final quantities = <String, double?>{};
+      for (final p in results) {
+        quantities[p.koreanName] = await _estimator.estimate(_selectedImage!);
+      }
+
+      setState(() {
+        _predictions = results;
+        _quantities = quantities;
+      });
 
       if (results.isEmpty && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -142,6 +158,7 @@ class _CameraScreenState extends State<CameraScreen> {
   }
 
   void _addToFridge(BuildContext context, FoodPrediction p) {
+    final qty = _quantities[p.koreanName];
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -151,7 +168,7 @@ class _CameraScreenState extends State<CameraScreen> {
           name: p.koreanName,
           category: p.category,
           storageLocation: '냉장',
-          quantity: 1,
+          quantity: qty != null ? qty.round() : 1,
           unit: '개',
           expiryDate: DateTime.now().add(const Duration(days: 7)),
         ),
@@ -213,11 +230,13 @@ class _ImagePreview extends StatelessWidget {
 
 class _PredictionTile extends StatelessWidget {
   final FoodPrediction prediction;
+  final double? quantity;
   final VoidCallback onAdd;
-  const _PredictionTile({required this.prediction, required this.onAdd});
+  const _PredictionTile({required this.prediction, required this.onAdd, this.quantity});
 
   @override
   Widget build(BuildContext context) {
+    final qtyText = quantity != null ? ' · 약 ${quantity!.toStringAsFixed(1)}개' : '';
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
@@ -227,7 +246,7 @@ class _PredictionTile extends StatelessWidget {
         ),
         title: Text(prediction.koreanName, style: Theme.of(context).textTheme.titleMedium),
         subtitle: Text(
-          '${prediction.category} · 신뢰도 ${(prediction.confidence * 100).toStringAsFixed(0)}%',
+          '${prediction.category} · 신뢰도 ${(prediction.confidence * 100).toStringAsFixed(0)}%$qtyText',
         ),
         trailing: ElevatedButton(
           onPressed: onAdd,
