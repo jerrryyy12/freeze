@@ -8,7 +8,7 @@ class AppConstants {
   static const String recipeApiKey = 'YOUR_SPOONACULAR_API_KEY';
 
   // 백엔드 AI 서버
-  static const String aiServerUrl = 'http://localhost:8000';
+  static const String aiServerUrl = 'http://172.30.1.56:8000';
 
   // 유통기한 경고 기준 (일)
   static const int expiryWarningDays = 3;
