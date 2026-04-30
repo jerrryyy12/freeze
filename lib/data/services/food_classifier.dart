@@ -148,6 +148,4 @@ const Map<String, (String, String)> _labelToKorean = {
   'french loaf': ('빵', '곡류'),
   'bagel': ('베이글', '곡류'),
   'pretzel': ('프레첼', '곡류'),
-  // 단백질·해산물
-  'rotisserie': ('닭고기', '육류'),
 };
