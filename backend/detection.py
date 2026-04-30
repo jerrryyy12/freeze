@@ -6,7 +6,7 @@ from typing import Any, Dict, List
 
 from PIL import Image
 
-ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 
 DETECTION_PROMPT = """이 이미지에서 식재료를 모두 찾아주세요.
 
@@ -28,44 +28,29 @@ def _image_to_base64(image: Image.Image) -> str:
 
 
 def detect_ingredients(image: Image.Image) -> List[Dict[str, Any]]:
-    if ANTHROPIC_API_KEY:
+    if GEMINI_API_KEY:
         try:
-            return _detect_with_claude(image)
+            return _detect_with_gemini(image)
         except Exception as e:
-            print(f"Claude API error: {e}")
+            print(f"Gemini API error: {e}")
 
     return _mock_detect()
 
 
-def _detect_with_claude(image: Image.Image) -> List[Dict[str, Any]]:
-    import anthropic
+def _detect_with_gemini(image: Image.Image) -> List[Dict[str, Any]]:
+    import google.generativeai as genai
 
-    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-    image_data = _image_to_base64(image)
+    genai.configure(api_key=GEMINI_API_KEY)
+    model = genai.GenerativeModel("gemini-1.5-flash")
 
-    message = client.messages.create(
-        model="claude-haiku-4-5",
-        max_tokens=512,
-        messages=[
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "image",
-                        "source": {
-                            "type": "base64",
-                            "media_type": "image/jpeg",
-                            "data": image_data,
-                        },
-                    },
-                    {"type": "text", "text": DETECTION_PROMPT},
-                ],
-            }
-        ],
-    )
+    buf = io.BytesIO()
+    image.convert("RGB").save(buf, format="JPEG", quality=85)
+    buf.seek(0)
 
-    raw = message.content[0].text.strip()
-    # Extract JSON array from response
+    img_part = {"mime_type": "image/jpeg", "data": buf.read()}
+    response = model.generate_content([DETECTION_PROMPT, img_part])
+
+    raw = response.text.strip()
     start = raw.find("[")
     end = raw.rfind("]") + 1
     if start == -1 or end == 0:
@@ -78,7 +63,12 @@ def _detect_with_claude(image: Image.Image) -> List[Dict[str, Any]]:
         category = item.get("category", "기타").strip()
         confidence = float(item.get("confidence", 0.8))
         if name:
-            results.append({"name": name, "category": category, "confidence": round(confidence, 3), "bbox": []})
+            results.append({
+                "name": name,
+                "category": category,
+                "confidence": round(confidence, 3),
+                "bbox": [],
+            })
     return results
 
 
