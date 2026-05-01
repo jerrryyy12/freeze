@@ -81,10 +81,43 @@ KOREAN_MAP = {
     "Lettuce":     "상추",
 }
 
-DATA_DIR   = "/content/dataset"
+DATA_DIR   = "/kaggle/working/dataset"
 TRAIN_DIR  = f"{DATA_DIR}/train"
 VAL_DIR    = f"{DATA_DIR}/val"
-MAX_PER_CLASS = 500  # 클래스당 최대 이미지 수
+MAX_PER_CLASS = 500
+
+# Kaggle 데이터셋 실제 경로 (하드코딩)
+SRC_DIRS = [
+    "/kaggle/input/datasets/moltean/fruits/fruits-360_100x100/fruits-360/Training",
+    "/kaggle/input/datasets/moltean/fruits/fruits-360_100x100/fruits-360/Test",
+    # 채소 데이터셋 - 실제 경로 자동 탐색
+]
+
+def find_vegetable_dir():
+    """채소 데이터셋 경로 자동 탐색."""
+    candidates = [
+        "/kaggle/input/vegetable-image-dataset",
+        "/kaggle/input/datasets/misrakahmed/vegetable-image-dataset/Vegetable Images/train",
+        "/kaggle/input/datasets/misrakahmed/vegetable-image-dataset/Vegetable Images/test",
+        "/kaggle/input/datasets/misrakahmed/vegetable-image-dataset/Vegetable Images/validation",
+    ]
+    found = []
+    for c in candidates:
+        p = Path(c)
+        if p.exists():
+            found.append(str(p))
+            print(f"  채소 경로 발견: {c}")
+    if not found:
+        # 전체 탐색
+        base = Path("/kaggle/input")
+        for p in base.rglob("*"):
+            if p.is_dir() and any(
+                kw in p.name.lower() for kw in ("vegetable", "veggie", "carrot", "broccoli")
+            ):
+                found.append(str(p))
+                print(f"  채소 경로 발견 (탐색): {p}")
+    return found
+
 
 def build_filtered_dataset(src_dirs: list[str]):
     """여러 소스 폴더에서 원하는 클래스만 추려서 train/val 구성."""
@@ -92,11 +125,16 @@ def build_filtered_dataset(src_dirs: list[str]):
     for split in ("train", "val"):
         os.makedirs(f"{DATA_DIR}/{split}", exist_ok=True)
 
+    copied = 0
     for src in src_dirs:
-        for folder in Path(src).rglob("*"):
+        src_path = Path(src)
+        if not src_path.exists():
+            print(f"  경로 없음 (건너뜀): {src}")
+            continue
+        # 직접 하위 폴더만 확인 (rglob 대신 iterdir 사용해 중복 방지)
+        for folder in src_path.iterdir():
             if not folder.is_dir():
                 continue
-            # 폴더명에서 영문 식재료명 매칭
             matched = None
             for eng, kor in KOREAN_MAP.items():
                 if eng.lower() in folder.name.lower():
@@ -106,22 +144,38 @@ def build_filtered_dataset(src_dirs: list[str]):
                 continue
 
             images = list(folder.glob("*.jpg")) + list(folder.glob("*.png"))
+            if not images:
+                # 한 단계 더 들어가기 (일부 데이터셋은 하위 폴더 구조)
+                for sub in folder.iterdir():
+                    if sub.is_dir():
+                        images += list(sub.glob("*.jpg")) + list(sub.glob("*.png"))
+
             random.shuffle(images)
             images = images[:MAX_PER_CLASS]
             split_idx = int(len(images) * 0.85)
 
-            for i, img in enumerate(images):
+            for i, img_path in enumerate(images):
                 split = "train" if i < split_idx else "val"
                 dest = Path(DATA_DIR) / split / matched
                 dest.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(img, dest / img.name)
+                dst_file = dest / img_path.name
+                if not dst_file.exists():
+                    shutil.copy2(img_path, dst_file)
+                    copied += 1
 
-    print("데이터셋 구성 완료")
+    print(f"데이터셋 구성 완료 (총 {copied}개 복사)")
     for split in ("train", "val"):
-        classes = os.listdir(f"{DATA_DIR}/{split}")
-        print(f"  {split}: {len(classes)}개 클래스")
+        split_path = Path(DATA_DIR) / split
+        if split_path.exists():
+            classes = [d for d in split_path.iterdir() if d.is_dir()]
+            print(f"  {split}: {len(classes)}개 클래스 → {[c.name for c in classes]}")
 
-build_filtered_dataset(["/tmp/fruits", "/tmp/veggies"])
+
+all_dirs = SRC_DIRS + find_vegetable_dir()
+print(f"사용할 소스 경로 {len(all_dirs)}개:")
+for d in all_dirs:
+    print(f"  {d}")
+build_filtered_dataset(all_dirs)
 
 
 # ============================================================
@@ -184,15 +238,14 @@ converter = tf.lite.TFLiteConverter.from_keras_model(model)
 converter.optimizations = [tf.lite.Optimize.DEFAULT]
 tflite_model = converter.convert()
 
-with open("/content/mobilenet_v2.tflite", "wb") as f:
+OUT_MODEL  = "/kaggle/working/mobilenet_v2.tflite"
+OUT_LABELS = "/kaggle/working/labels.txt"
+
+with open(OUT_MODEL, "wb") as f:
     f.write(tflite_model)
-with open("/content/labels.txt", "w", encoding="utf-8") as f:
+with open(OUT_LABELS, "w", encoding="utf-8") as f:
     f.write("\n".join(CLASS_NAMES))
 
 print("완료!")
-print("  mobilenet_v2.tflite:", os.path.getsize("/content/mobilenet_v2.tflite"), "bytes")
-print("  labels.txt:", CLASS_NAMES)
-
-# from google.colab import files
-# files.download("/content/mobilenet_v2.tflite")
-# files.download("/content/labels.txt")
+print(f"  {OUT_MODEL}: {os.path.getsize(OUT_MODEL):,} bytes")
+print(f"  labels.txt 클래스: {CLASS_NAMES}")
