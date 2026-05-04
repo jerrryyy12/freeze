@@ -21,6 +21,7 @@ class FoodClassifier {
   static const String _modelPath = 'assets/ml/mobilenet_v2.tflite';
   static const String _labelsPath = 'assets/ml/labels.txt';
   static const int _inputSize = 224;
+  static const double _confidenceThreshold = 0.15;
 
   Interpreter? _interpreter;
   List<String> _labels = [];
@@ -36,7 +37,7 @@ class FoodClassifier {
         .toList();
   }
 
-  Future<List<FoodPrediction>> classify(File imageFile, {int topK = 5}) async {
+  Future<List<FoodPrediction>> classify(File imageFile, {int topK = 3}) async {
     await load();
     final interpreter = _interpreter!;
 
@@ -72,24 +73,18 @@ class FoodClassifier {
       ..sort((a, b) => scores[b].compareTo(scores[a]));
 
     final predictions = <FoodPrediction>[];
-    final seenKorean = <String>{};
-
     for (final idx in ranked) {
       if (predictions.length >= topK) break;
-      final labelIndex = _labels.length == outputSize ? idx : idx - 1;
-      if (labelIndex < 0 || labelIndex >= _labels.length) continue;
+      if (idx >= _labels.length) continue;
+      final score = scores[idx].toDouble();
+      if (score < _confidenceThreshold && predictions.isNotEmpty) break;
 
-      final rawLabel = _labels[labelIndex].toLowerCase();
-      final mapped = _matchKorean(rawLabel);
-      if (mapped == null) continue;
-      if (seenKorean.contains(mapped.$1)) continue;
-      seenKorean.add(mapped.$1);
-
+      final korean = _labels[idx];
       predictions.add(FoodPrediction(
-        label: rawLabel,
-        koreanName: mapped.$1,
-        category: mapped.$2,
-        confidence: scores[idx].toDouble(),
+        label: korean,
+        koreanName: korean,
+        category: _categoryOf(korean),
+        confidence: score,
       ));
     }
 
@@ -100,52 +95,21 @@ class FoodClassifier {
     _interpreter?.close();
     _interpreter = null;
   }
-
-  (String, String)? _matchKorean(String rawLabel) {
-    for (final entry in _labelToKorean.entries) {
-      if (rawLabel.contains(entry.key)) {
-        return (entry.value.$1, entry.value.$2);
-      }
-    }
-    return null;
-  }
 }
 
-const Map<String, (String, String)> _labelToKorean = {
-  // 과일
-  'granny smith': ('사과', '과일'),
-  'apple': ('사과', '과일'),
-  'orange': ('오렌지', '과일'),
-  'lemon': ('레몬', '과일'),
-  'banana': ('바나나', '과일'),
-  'pineapple': ('파인애플', '과일'),
-  'strawberry': ('딸기', '과일'),
-  'pomegranate': ('석류', '과일'),
-  'fig': ('무화과', '과일'),
-  'pear': ('배', '과일'),
-  'jackfruit': ('잭프루트', '과일'),
-  'custard apple': ('커스타드애플', '과일'),
-  // ImageNet에는 복숭아가 없어 색·형태가 비슷한 후보를 매핑
-  'peach': ('복숭아', '과일'),
-  'apricot': ('살구', '과일'),
-  'nectarine': ('천도복숭아', '과일'),
-  // 채소
-  'broccoli': ('브로콜리', '채소'),
-  'cauliflower': ('콜리플라워', '채소'),
-  'cucumber': ('오이', '채소'),
-  'zucchini': ('애호박', '채소'),
-  'bell pepper': ('피망', '채소'),
-  'cardoon': ('아티초크', '채소'),
-  'artichoke': ('아티초크', '채소'),
-  'mushroom': ('버섯', '채소'),
-  'corn': ('옥수수', '채소'),
-  'acorn squash': ('단호박', '채소'),
-  'butternut squash': ('단호박', '채소'),
-  'spaghetti squash': ('호박', '채소'),
-  'head cabbage': ('양배추', '채소'),
-  'cabbage': ('양배추', '채소'),
-  // 곡류/가공
-  'french loaf': ('빵', '곡류'),
-  'bagel': ('베이글', '곡류'),
-  'pretzel': ('프레첼', '곡류'),
+String _categoryOf(String koreanName) {
+  if (_fruits.contains(koreanName)) return '과일';
+  if (_vegetables.contains(koreanName)) return '채소';
+  return '기타';
+}
+
+const Set<String> _fruits = {
+  '사과', '바나나', '오렌지', '딸기', '포도', '수박',
+  '배', '복숭아', '망고', '파인애플', '레몬', '키위',
+};
+
+const Set<String> _vegetables = {
+  '당근', '브로콜리', '토마토', '오이', '감자', '양파',
+  '피망', '양배추', '시금치', '옥수수', '버섯', '생강',
+  '마늘', '가지', '애호박', '상추',
 };
