@@ -107,10 +107,13 @@ def collect_samples(src_dirs):
             if imgs:
                 class_to_paths.setdefault(label, []).extend([str(p) for p in imgs])
 
-    # 클래스별 샘플 수 제한
+    # 클래스별 샘플 수 제한 (감자는 채소 데이터셋의 다양성 때문에 편향이 심해서 절반으로 캡)
+    DOMINANT_CAP = MAX_PER_CLASS // 2
+    DOMINANT_CLASSES = {"감자"}
     for lbl in class_to_paths:
         random.shuffle(class_to_paths[lbl])
-        class_to_paths[lbl] = class_to_paths[lbl][:MAX_PER_CLASS]
+        cap = DOMINANT_CAP if lbl in DOMINANT_CLASSES else MAX_PER_CLASS
+        class_to_paths[lbl] = class_to_paths[lbl][:cap]
 
     return class_to_paths
 
@@ -155,12 +158,21 @@ def make_dataset(data, training=True):
     def load_and_preprocess(path, label):
         raw = tf.io.read_file(path)
         img = tf.image.decode_image(raw, channels=3, expand_animations=False)
-        img = tf.image.resize(img, [IMG_SIZE, IMG_SIZE])
-        img = (tf.cast(img, tf.float32) - 127.5) / 127.5
         if training:
+            # 약간 크게 리사이즈 후 랜덤 크롭 → 위치/줌 다양성 확보
+            img = tf.image.resize(img, [IMG_SIZE + 32, IMG_SIZE + 32])
+            img = tf.image.random_crop(img, [IMG_SIZE, IMG_SIZE, 3])
             img = tf.image.random_flip_left_right(img)
-            img = tf.image.random_brightness(img, 0.1)
-            img = tf.image.random_contrast(img, 0.9, 1.1)
+            img = tf.image.random_flip_up_down(img)
+            # 색감/명암을 강하게 흔들어 흰배경 vs 실사배경 편향 완화
+            img = tf.image.random_brightness(img, 0.4)
+            img = tf.image.random_contrast(img, 0.6, 1.4)
+            img = tf.image.random_saturation(img, 0.6, 1.4)
+            img = tf.image.random_hue(img, 0.08)
+        else:
+            img = tf.image.resize(img, [IMG_SIZE, IMG_SIZE])
+        img = (tf.cast(img, tf.float32) - 127.5) / 127.5
+        img = tf.clip_by_value(img, -1.0, 1.0)
         img.set_shape([IMG_SIZE, IMG_SIZE, 3])
         return img, label
 
@@ -183,7 +195,7 @@ base.trainable = False
 inp = layers.Input(shape=(IMG_SIZE, IMG_SIZE, 3))
 x   = base(inp, training=False)
 x   = layers.GlobalAveragePooling2D()(x)
-x   = layers.Dropout(0.2)(x)
+x   = layers.Dropout(0.4)(x)   # 0.2 → 0.4 (감자 같은 다수 클래스 과적합 완화)
 out = layers.Dense(NUM_CLASSES, activation="softmax")(x)
 
 model = Model(inp, out)
@@ -202,18 +214,19 @@ cb = [
 ]
 
 print("\n=== 1단계: 헤드 학습 ===")
-model.fit(train_ds, validation_data=val_ds, epochs=12, callbacks=cb)
+model.fit(train_ds, validation_data=val_ds, epochs=15, callbacks=cb)
 
 print("\n=== 2단계: Fine-tuning ===")
 base.trainable = True
-for layer in base.layers[:-30]:
+# 더 많은 레이어를 언프리즈해서 식재료 도메인에 깊게 적응
+for layer in base.layers[:-60]:
     layer.trainable = False
 model.compile(
     optimizer=tf.keras.optimizers.Adam(1e-5),
     loss="categorical_crossentropy",
     metrics=["accuracy"],
 )
-model.fit(train_ds, validation_data=val_ds, epochs=8, callbacks=cb)
+model.fit(train_ds, validation_data=val_ds, epochs=12, callbacks=cb)
 
 # ============================================================
 # TFLite 변환
