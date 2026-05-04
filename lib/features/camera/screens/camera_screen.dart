@@ -168,7 +168,7 @@ class _CameraScreenState extends State<CameraScreen> {
           name: p.koreanName,
           category: p.category,
           storageLocation: '냉장',
-          quantity: qty != null ? qty.round() : 1,
+          quantity: qty ?? 1.0,
           unit: '개',
           expiryDate: DateTime.now().add(const Duration(days: 7)),
         ),
