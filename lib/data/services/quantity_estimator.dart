@@ -4,7 +4,7 @@ import 'package:image/image.dart' as img;
 import 'package:tflite_flutter/tflite_flutter.dart';
 
 class QuantityEstimator {
-  static const String _modelPath = 'ml/quantity_model.tflite';
+  static const String _modelPath = 'assets/ml/quantity_model.tflite';
   static const int _inputSize = 224;
 
   Interpreter? _interpreter;
