@@ -21,7 +21,7 @@ dependencies:
   dio: ^5.7.0
 
   # 온디바이스 AI (TFLite)
-  tflite_flutter: ^0.11.0
+  tflite_flutter: ^0.12.1
 
   # 상태 관리
   provider: ^6.1.2
