@@ -18,7 +18,8 @@ class FoodPrediction {
 }
 
 class FoodClassifier {
-  static const String _modelPath = 'assets/ml/mobilenet_v2.tflite';
+  // tflite_flutter는 fromAsset에서 'assets/' 접두어를 자동으로 붙여 'ml/...'만 전달.
+  static const String _modelPath = 'ml/mobilenet_v2.tflite';
   static const String _labelsPath = 'assets/ml/labels.txt';
   static const int _inputSize = 224;
   static const double _confidenceThreshold = 0.15;
