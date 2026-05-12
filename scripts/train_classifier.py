@@ -1,70 +1,108 @@
 """
 Kaggle 노트북용 식재료 분류 모델 학습.
 
-파일을 복사하지 않고 원본 경로에서 직접 tf.data로 학습합니다.
-디스크 사용량: 0 (working 디렉터리에 .tflite + labels.txt만 저장)
+데이터셋 (Kaggle 노트북 "+ Add Input" 에서 추가):
+  1. kritikseth/fruit-and-vegetable-image-recognition  ← 핵심 (실사 사진)
+  2. moltean/fruits                                    ← 보조 (딸기·레몬·복숭아·애호박)
+  3. misrakahmed/vegetable-image-dataset               ← 보조 (브로콜리·버섯)
 
-사용법:
-1. Kaggle 노트북에 Fruits360 + Vegetable Image Dataset 추가
-2. 이 스크립트 전체를 셀에 붙여넣고 실행
-3. Output 탭에서 mobilenet_v2.tflite + labels.txt 다운로드
+파일 복사 없이 원본 경로에서 직접 tf.data로 학습합니다.
+학습 완료 후 Output 탭에서 mobilenet_v2.tflite + labels.txt 다운로드.
 """
 
 import os
 import random
 from pathlib import Path
 
-import numpy as np
 import tensorflow as tf
 from tensorflow.keras import Model, layers
 from tensorflow.keras.applications import MobileNetV2
 
-IMG_SIZE = 224
-BATCH    = 32
-MAX_PER_CLASS = 300   # 클래스당 최대 이미지 수
+IMG_SIZE      = 224
+BATCH         = 32
+MAX_PER_CLASS = 400   # 클래스당 최대 이미지 수
+
+# kritikseth 데이터셋에 있는 클래스 (실사) → 더 많이 허용
+REAL_PHOTO_CAP   = MAX_PER_CLASS
+# Fruits360처럼 흰배경 인공사진 → 실사 클래스에 이미 있으면 보조로만
+SYNTHETIC_CAP    = 150
+# 감자는 채소 데이터셋에서 편향이 심해 따로 제한
+POTATO_CAP       = 120
 
 KOREAN_MAP = {
+    # kritikseth에 있는 것 (실사 우선)
     "Apple":       "사과",
     "Banana":      "바나나",
     "Orange":      "오렌지",
-    "Strawberry":  "딸기",
     "Grape":       "포도",
     "Watermelon":  "수박",
     "Pear":        "배",
-    "Peach":       "복숭아",
     "Mango":       "망고",
     "Pineapple":   "파인애플",
-    "Lemon":       "레몬",
     "Kiwi":        "키위",
     "Carrot":      "당근",
-    "Broccoli":    "브로콜리",
     "Tomato":      "토마토",
     "Cucumber":    "오이",
     "Potato":      "감자",
     "Onion":       "양파",
-    "Pepper":      "피망",
     "Cabbage":     "양배추",
     "Spinach":     "시금치",
     "Corn":        "옥수수",
-    "Mushroom":    "버섯",
     "Ginger":      "생강",
     "Garlic":      "마늘",
     "Eggplant":    "가지",
-    "Zucchini":    "애호박",
     "Lettuce":     "상추",
+    "Paprika":     "피망",
+    "Capsicum":    "피망",
+    "Pepper":      "피망",
+    # Fruits360·채소 데이터셋 보조 (kritikseth에 없는 것)
+    "Strawberry":  "딸기",
+    "Peach":       "복숭아",
+    "Lemon":       "레몬",
+    "Zucchini":    "애호박",
+    "Broccoli":    "브로콜리",
+    "Mushroom":    "버섯",
+}
+
+# kritikseth에 있는 클래스 (실사 데이터) 목록
+KRITIKSETH_CLASSES = {
+    "사과", "바나나", "오렌지", "포도", "수박", "배", "망고",
+    "파인애플", "키위", "당근", "토마토", "오이", "감자", "양파",
+    "양배추", "시금치", "옥수수", "생강", "마늘", "가지", "상추", "피망",
 }
 
 # ============================================================
-# 소스 경로 탐색 (파일 복사 없음)
+# 소스 경로 탐색
 # ============================================================
-SRC_DIRS = [
-    "/kaggle/input/datasets/moltean/fruits/fruits-360_100x100/fruits-360/Training",
-    "/kaggle/input/datasets/moltean/fruits/fruits-360_100x100/fruits-360/Test",
-]
-
-def find_extra_dirs():
-    """채소 데이터셋 등 추가 경로 자동 탐색."""
+def find_all_src_dirs():
     found = []
+
+    # 1순위: kritikseth 실사 데이터셋
+    kritikseth_candidates = [
+        "/kaggle/input/fruit-and-vegetable-image-recognition/train",
+        "/kaggle/input/fruit-and-vegetable-image-recognition/test",
+        "/kaggle/input/fruit-and-vegetable-image-recognition/validation",
+        "/kaggle/input/datasets/kritikseth/fruit-and-vegetable-image-recognition/train",
+        "/kaggle/input/datasets/kritikseth/fruit-and-vegetable-image-recognition/test",
+        "/kaggle/input/datasets/kritikseth/fruit-and-vegetable-image-recognition/validation",
+    ]
+    for c in kritikseth_candidates:
+        if Path(c).exists():
+            found.append(("kritikseth", c))
+            print(f"  [실사] 발견: {c}")
+
+    # 2순위: Fruits360 (보조 - 복숭아·딸기·레몬 등)
+    fruits360_candidates = [
+        "/kaggle/input/datasets/moltean/fruits/fruits-360_100x100/fruits-360/Training",
+        "/kaggle/input/datasets/moltean/fruits/fruits-360_100x100/fruits-360/Test",
+        "/kaggle/input/fruits/fruits-360_100x100/fruits-360/Training",
+    ]
+    for c in fruits360_candidates:
+        if Path(c).exists():
+            found.append(("fruits360", c))
+            print(f"  [보조] 발견: {c}")
+
+    # 3순위: 채소 데이터셋 (브로콜리·버섯 보조)
     veg_candidates = [
         "/kaggle/input/vegetable-image-dataset/train",
         "/kaggle/input/vegetable-image-dataset/test",
@@ -75,47 +113,90 @@ def find_extra_dirs():
     ]
     for c in veg_candidates:
         if Path(c).exists():
-            found.append(c)
-            print(f"  발견: {c}")
+            found.append(("vegetable", c))
+            print(f"  [보조] 발견: {c}")
+
     return found
 
+
 print("=== 경로 탐색 ===")
-all_src = [d for d in SRC_DIRS if Path(d).exists()] + find_extra_dirs()
-print(f"소스 경로 {len(all_src)}개 확인됨")
+all_src = find_all_src_dirs()
+if not all_src:
+    raise RuntimeError("데이터셋을 찾지 못했습니다. Kaggle 노트북에 데이터셋을 추가하세요.")
+print(f"총 {len(all_src)}개 경로 확인")
 
 # ============================================================
-# (path, label_index) 리스트 수집 - 파일 복사 없음
+# 샘플 수집
 # ============================================================
-def collect_samples(src_dirs):
+def collect_samples(src_list):
+    """
+    (dataset_type, path) 목록에서 (path, label) 수집.
+    실사 데이터(kritikseth)를 먼저 쌓고, 보조 데이터는 클래스 한도가
+    남은 경우에만 추가해 실사 이미지를 우선한다.
+    """
     class_to_paths: dict[str, list[str]] = {}
-    for src in src_dirs:
+
+    # 실사 데이터 먼저 수집
+    for dtype, src in src_list:
+        if dtype != "kritikseth":
+            continue
         for folder in Path(src).iterdir():
             if not folder.is_dir():
                 continue
-            label = None
-            for eng, kor in KOREAN_MAP.items():
-                if eng.lower() in folder.name.lower():
-                    label = kor
-                    break
+            label = _match_label(folder.name)
             if label is None:
                 continue
-            imgs = list(folder.glob("*.jpg")) + list(folder.glob("*.png"))
-            if not imgs:
-                for sub in folder.iterdir():
-                    if sub.is_dir():
-                        imgs += list(sub.glob("*.jpg")) + list(sub.glob("*.png"))
+            imgs = _collect_images(folder)
             if imgs:
-                class_to_paths.setdefault(label, []).extend([str(p) for p in imgs])
+                class_to_paths.setdefault(label, []).extend(imgs)
 
-    # 클래스별 샘플 수 제한 (감자는 채소 데이터셋의 다양성 때문에 편향이 심해서 절반으로 캡)
-    DOMINANT_CAP = MAX_PER_CLASS // 2
-    DOMINANT_CLASSES = {"감자"}
-    for lbl in class_to_paths:
+    # 실사 클래스별 캡 적용
+    for lbl in list(class_to_paths.keys()):
         random.shuffle(class_to_paths[lbl])
-        cap = DOMINANT_CAP if lbl in DOMINANT_CLASSES else MAX_PER_CLASS
+        cap = POTATO_CAP if lbl == "감자" else REAL_PHOTO_CAP
         class_to_paths[lbl] = class_to_paths[lbl][:cap]
 
+    # 보조 데이터: kritikseth에 없거나 부족한 클래스만 채우기
+    for dtype, src in src_list:
+        if dtype == "kritikseth":
+            continue
+        for folder in Path(src).iterdir():
+            if not folder.is_dir():
+                continue
+            label = _match_label(folder.name)
+            if label is None:
+                continue
+
+            # kritikseth 실사 데이터가 있는 클래스는 보조 캡 적용
+            current = len(class_to_paths.get(label, []))
+            cap = POTATO_CAP if label == "감자" else (
+                SYNTHETIC_CAP if label in KRITIKSETH_CLASSES else REAL_PHOTO_CAP
+            )
+            if current >= cap:
+                continue
+
+            imgs = _collect_images(folder)
+            random.shuffle(imgs)
+            need = cap - current
+            class_to_paths.setdefault(label, []).extend(imgs[:need])
+
     return class_to_paths
+
+
+def _match_label(folder_name: str):
+    for eng, kor in KOREAN_MAP.items():
+        if eng.lower() in folder_name.lower():
+            return kor
+    return None
+
+
+def _collect_images(folder: Path) -> list[str]:
+    imgs = list(folder.glob("*.jpg")) + list(folder.glob("*.png")) + list(folder.glob("*.jpeg"))
+    if not imgs:
+        for sub in folder.iterdir():
+            if sub.is_dir():
+                imgs += list(sub.glob("*.jpg")) + list(sub.glob("*.png")) + list(sub.glob("*.jpeg"))
+    return [str(p) for p in imgs]
 
 
 print("\n=== 샘플 수집 ===")
@@ -124,14 +205,15 @@ CLASS_NAMES = sorted(class_to_paths.keys())
 NUM_CLASSES = len(CLASS_NAMES)
 label_to_idx = {lbl: i for i, lbl in enumerate(CLASS_NAMES)}
 
-print(f"클래스 {NUM_CLASSES}개: {CLASS_NAMES}")
+print(f"클래스 {NUM_CLASSES}개:")
 for lbl in CLASS_NAMES:
-    print(f"  {lbl}: {len(class_to_paths[lbl])}장")
+    tag = "[실사]" if lbl in KRITIKSETH_CLASSES else "[보조]"
+    print(f"  {tag} {lbl}: {len(class_to_paths[lbl])}장")
 
 if NUM_CLASSES == 0:
-    raise RuntimeError("클래스를 찾지 못했습니다. 데이터셋 경로를 확인하세요.")
+    raise RuntimeError("클래스를 찾지 못했습니다.")
 
-# (path, one_hot) 전체 목록
+# (path, one_hot) 목록
 all_paths, all_labels = [], []
 for lbl, paths in class_to_paths.items():
     idx = label_to_idx[lbl]
@@ -149,7 +231,7 @@ val_data   = combined[split_idx:]
 print(f"\ntrain: {len(train_data)}장 / val: {len(val_data)}장")
 
 # ============================================================
-# tf.data 파이프라인 (원본 경로에서 직접 읽기)
+# tf.data 파이프라인
 # ============================================================
 def make_dataset(data, training=True):
     paths  = [d[0] for d in data]
@@ -159,12 +241,10 @@ def make_dataset(data, training=True):
         raw = tf.io.read_file(path)
         img = tf.image.decode_image(raw, channels=3, expand_animations=False)
         if training:
-            # 약간 크게 리사이즈 후 랜덤 크롭 → 위치/줌 다양성 확보
             img = tf.image.resize(img, [IMG_SIZE + 32, IMG_SIZE + 32])
             img = tf.image.random_crop(img, [IMG_SIZE, IMG_SIZE, 3])
             img = tf.image.random_flip_left_right(img)
             img = tf.image.random_flip_up_down(img)
-            # 색감/명암을 강하게 흔들어 흰배경 vs 실사배경 편향 완화
             img = tf.image.random_brightness(img, 0.4)
             img = tf.image.random_contrast(img, 0.6, 1.4)
             img = tf.image.random_saturation(img, 0.6, 1.4)
@@ -195,7 +275,7 @@ base.trainable = False
 inp = layers.Input(shape=(IMG_SIZE, IMG_SIZE, 3))
 x   = base(inp, training=False)
 x   = layers.GlobalAveragePooling2D()(x)
-x   = layers.Dropout(0.4)(x)   # 0.2 → 0.4 (감자 같은 다수 클래스 과적합 완화)
+x   = layers.Dropout(0.4)(x)
 out = layers.Dense(NUM_CLASSES, activation="softmax")(x)
 
 model = Model(inp, out)
@@ -206,7 +286,7 @@ model.compile(
 )
 
 cb = [
-    tf.keras.callbacks.EarlyStopping(patience=4, restore_best_weights=True),
+    tf.keras.callbacks.EarlyStopping(patience=5, restore_best_weights=True),
     tf.keras.callbacks.ModelCheckpoint(
         "/kaggle/working/best_checkpoint.keras",
         save_best_only=True, monitor="val_accuracy",
@@ -218,7 +298,6 @@ model.fit(train_ds, validation_data=val_ds, epochs=15, callbacks=cb)
 
 print("\n=== 2단계: Fine-tuning ===")
 base.trainable = True
-# 더 많은 레이어를 언프리즈해서 식재료 도메인에 깊게 적응
 for layer in base.layers[:-60]:
     layer.trainable = False
 model.compile(
