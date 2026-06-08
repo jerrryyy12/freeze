@@ -166,18 +166,16 @@ class _CameraScreenState extends State<CameraScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => ChangeNotifierProvider.value(
-        value: provider,
-        child: AddIngredientSheet(
-          ingredient: Ingredient(
-            name: p.koreanName,
-            category: p.category,
-            storageLocation: '냉장',
-            quantity: qty ?? 1.0,
-            unit: '개',
-            expiryDate: DateTime.now().add(const Duration(days: 7)),
-          ),
+      builder: (_) => AddIngredientSheet(
+        ingredient: Ingredient(
+          name: p.koreanName,
+          category: p.category,
+          storageLocation: '냉장',
+          quantity: qty ?? 1.0,
+          unit: '개',
+          expiryDate: DateTime.now().add(const Duration(days: 7)),
         ),
+        onSave: (ingredient) => provider.addIngredient(ingredient),
       ),
     );
   }

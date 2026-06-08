@@ -8,7 +8,8 @@ import '../../../data/repositories/ingredient_provider.dart';
 
 class AddIngredientSheet extends StatefulWidget {
   final Ingredient? ingredient;
-  const AddIngredientSheet({super.key, this.ingredient});
+  final Future<void> Function(Ingredient)? onSave;
+  const AddIngredientSheet({super.key, this.ingredient, this.onSave});
 
   @override
   State<AddIngredientSheet> createState() => _AddIngredientSheetState();
@@ -206,32 +207,33 @@ class _AddIngredientSheetState extends State<AddIngredientSheet> {
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
+    final ingredient = Ingredient(
+      id: widget.ingredient?.id,
+      name: _nameCtrl.text.trim(),
+      category: _category,
+      storageLocation: _storageLocation,
+      quantity: double.parse(_quantityCtrl.text),
+      unit: _unitCtrl.text.trim().isEmpty ? 'g' : _unitCtrl.text.trim(),
+      expiryDate: _expiryDate,
+      addedDate: widget.ingredient?.addedDate,
+      memo: _memoCtrl.text.trim().isEmpty ? null : _memoCtrl.text.trim(),
+    );
+
     try {
-      final provider = context.read<IngredientProvider>();
-      final ingredient = Ingredient(
-        id: widget.ingredient?.id,
-        name: _nameCtrl.text.trim(),
-        category: _category,
-        storageLocation: _storageLocation,
-        quantity: double.parse(_quantityCtrl.text),
-        unit: _unitCtrl.text.trim().isEmpty ? 'g' : _unitCtrl.text.trim(),
-        expiryDate: _expiryDate,
-        addedDate: widget.ingredient?.addedDate,
-        memo: _memoCtrl.text.trim().isEmpty ? null : _memoCtrl.text.trim(),
-      );
-
-      if (_isEdit) {
-        await provider.updateIngredient(ingredient);
+      if (widget.onSave != null) {
+        // 카메라 화면에서 호출: 콜백으로 직접 처리
+        await widget.onSave!(ingredient);
       } else {
-        await provider.addIngredient(ingredient);
+        // 냉장고 화면에서 호출: Provider로 처리
+        final provider = context.read<IngredientProvider>();
+        if (_isEdit) {
+          await provider.updateIngredient(ingredient);
+        } else {
+          await provider.addIngredient(ingredient);
+        }
       }
 
-      if (mounted) {
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_isEdit ? '수정되었습니다' : '냉장고에 추가되었습니다')),
-        );
-      }
+      if (mounted) Navigator.pop(context);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
