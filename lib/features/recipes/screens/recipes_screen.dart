@@ -284,7 +284,9 @@ class _RecipeDetailSheetState extends State<_RecipeDetailSheet> {
   @override
   Widget build(BuildContext context) {
     final recipe = _recipe;
-    final maxHeight = MediaQuery.of(context).size.height * 0.9;
+    final mq = MediaQuery.of(context);
+    final maxHeight = mq.size.height * 0.9;
+    final bottomSafe = mq.viewPadding.bottom;
     return ConstrainedBox(
       constraints: BoxConstraints(maxHeight: maxHeight),
       child: Container(
@@ -305,7 +307,7 @@ class _RecipeDetailSheetState extends State<_RecipeDetailSheet> {
             const SizedBox(height: 12),
             Flexible(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                padding: EdgeInsets.fromLTRB(20, 0, 20, 24 + bottomSafe),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
