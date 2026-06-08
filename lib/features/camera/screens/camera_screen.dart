@@ -230,15 +230,22 @@ class _ImagePreview extends StatelessWidget {
   }
 }
 
-class _PredictionTile extends StatelessWidget {
+class _PredictionTile extends StatefulWidget {
   final FoodPrediction prediction;
   final double? quantity;
-  final VoidCallback onAdd;
+  final Future<void> Function() onAdd;
   const _PredictionTile({required this.prediction, required this.onAdd, this.quantity});
 
   @override
+  State<_PredictionTile> createState() => _PredictionTileState();
+}
+
+class _PredictionTileState extends State<_PredictionTile> {
+  bool _loading = false;
+
+  @override
   Widget build(BuildContext context) {
-    final qtyText = quantity != null ? ' · 약 ${quantity!.toStringAsFixed(1)}개' : '';
+    final qtyText = widget.quantity != null ? ' · 약 ${widget.quantity!.toStringAsFixed(1)}개' : '';
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
@@ -246,17 +253,26 @@ class _PredictionTile extends StatelessWidget {
           backgroundColor: AppTheme.secondary.withOpacity(0.1),
           child: const Icon(Icons.eco, color: AppTheme.secondary),
         ),
-        title: Text(prediction.koreanName, style: Theme.of(context).textTheme.titleMedium),
+        title: Text(widget.prediction.koreanName, style: Theme.of(context).textTheme.titleMedium),
         subtitle: Text(
-          '${prediction.category} · 신뢰도 ${(prediction.confidence * 100).toStringAsFixed(0)}%$qtyText',
+          '${widget.prediction.category} · 신뢰도 ${(widget.prediction.confidence * 100).toStringAsFixed(0)}%$qtyText',
         ),
         trailing: ElevatedButton(
-          onPressed: onAdd,
+          onPressed: _loading ? null : () async {
+            setState(() => _loading = true);
+            try {
+              await widget.onAdd();
+            } finally {
+              if (mounted) setState(() => _loading = false);
+            }
+          },
           style: ElevatedButton.styleFrom(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
             minimumSize: Size.zero,
           ),
-          child: const Text('추가'),
+          child: _loading
+              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+              : const Text('추가'),
         ),
       ),
     );
