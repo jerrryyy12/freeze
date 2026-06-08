@@ -159,25 +159,23 @@ class _CameraScreenState extends State<CameraScreen> {
     if (mounted) setState(() => _isAnalyzing = false);
   }
 
-  void _addToFridge(BuildContext context, FoodPrediction p) {
+  Future<void> _addToFridge(BuildContext context, FoodPrediction p) async {
     final qty = _quantities[p.koreanName];
     final provider = context.read<IngredientProvider>();
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => AddIngredientSheet(
-        ingredient: Ingredient(
-          name: p.koreanName,
-          category: p.category,
-          storageLocation: '냉장',
-          quantity: qty ?? 1.0,
-          unit: '개',
-          expiryDate: DateTime.now().add(const Duration(days: 7)),
-        ),
-        onSave: (ingredient) => provider.addIngredient(ingredient),
-      ),
+    final ingredient = Ingredient(
+      name: p.koreanName,
+      category: p.category,
+      storageLocation: '냉장',
+      quantity: qty ?? 1.0,
+      unit: '개',
+      expiryDate: DateTime.now().add(const Duration(days: 7)),
     );
+    await provider.addIngredient(ingredient);
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${p.koreanName} 냉장고에 추가됐습니다')),
+      );
+    }
   }
 }
 
