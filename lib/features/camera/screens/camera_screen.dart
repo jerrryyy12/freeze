@@ -1,8 +1,10 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:provider/provider.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../data/models/ingredient.dart';
+import '../../../data/repositories/ingredient_provider.dart';
 import '../../../data/services/food_classifier.dart';
 import '../../../data/services/quantity_estimator.dart';
 import '../../refrigerator/widgets/add_ingredient_sheet.dart';
@@ -159,18 +161,22 @@ class _CameraScreenState extends State<CameraScreen> {
 
   void _addToFridge(BuildContext context, FoodPrediction p) {
     final qty = _quantities[p.koreanName];
+    final provider = context.read<IngredientProvider>();
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => AddIngredientSheet(
-        ingredient: Ingredient(
-          name: p.koreanName,
-          category: p.category,
-          storageLocation: '냉장',
-          quantity: qty ?? 1.0,
-          unit: '개',
-          expiryDate: DateTime.now().add(const Duration(days: 7)),
+      builder: (_) => ChangeNotifierProvider.value(
+        value: provider,
+        child: AddIngredientSheet(
+          ingredient: Ingredient(
+            name: p.koreanName,
+            category: p.category,
+            storageLocation: '냉장',
+            quantity: qty ?? 1.0,
+            unit: '개',
+            expiryDate: DateTime.now().add(const Duration(days: 7)),
+          ),
         ),
       ),
     );
