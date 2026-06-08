@@ -32,6 +32,56 @@ class RecipeService {
     return _getMockRecipes(ingredients);
   }
 
+  /// 레시피 상세 조리법 조회 (Spoonacular recipe information)
+  Future<Recipe> getRecipeDetail(Recipe recipe) async {
+    // mock 레시피(id <= 3)는 내장 조리법 사용
+    if (recipe.id <= 3) {
+      return recipe.copyWith(instructions: _mockInstructions(recipe));
+    }
+
+    final uri = Uri.parse(
+      '${AppConstants.recipeBaseUrl}/recipes/${recipe.id}/information'
+      '?includeNutrition=false'
+      '&apiKey=${AppConstants.recipeApiKey}',
+    );
+
+    try {
+      final response = await http.get(uri).timeout(const Duration(seconds: 10));
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        final steps = <String>[];
+        final analyzed = data['analyzedInstructions'] as List? ?? [];
+        for (final block in analyzed) {
+          for (final step in (block['steps'] as List? ?? [])) {
+            final text = step['step'] as String?;
+            if (text != null && text.trim().isNotEmpty) steps.add(text.trim());
+          }
+        }
+        return recipe.copyWith(
+          instructions: steps,
+          summary: data['summary'] as String? ?? recipe.summary,
+          readyInMinutes: data['readyInMinutes'] as int? ?? recipe.readyInMinutes,
+          servings: data['servings'] as int? ?? recipe.servings,
+        );
+      }
+    } catch (_) {}
+
+    // 실패 시 mock 조리법
+    return recipe.copyWith(instructions: _mockInstructions(recipe));
+  }
+
+  List<String> _mockInstructions(Recipe recipe) {
+    final main = recipe.usedIngredients.isNotEmpty
+        ? recipe.usedIngredients.join(', ')
+        : '재료';
+    return [
+      '$main 을(를) 깨끗이 씻어 먹기 좋은 크기로 손질합니다.',
+      '팬이나 냄비를 중불로 달군 뒤 손질한 재료를 넣습니다.',
+      '소금, 후추 등으로 간을 맞추며 골고루 익혀줍니다.',
+      '재료가 충분히 익으면 그릇에 담아 완성합니다.',
+    ];
+  }
+
   // API 키 없을 때 mock 데이터
   List<Recipe> _getMockRecipes(List<String> ingredients) {
     return [

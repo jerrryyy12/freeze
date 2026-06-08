@@ -247,76 +247,167 @@ class _MatchBadge extends StatelessWidget {
   }
 }
 
-class _RecipeDetailSheet extends StatelessWidget {
+class _RecipeDetailSheet extends StatefulWidget {
   final Recipe recipe;
   const _RecipeDetailSheet({required this.recipe});
 
   @override
+  State<_RecipeDetailSheet> createState() => _RecipeDetailSheetState();
+}
+
+class _RecipeDetailSheetState extends State<_RecipeDetailSheet> {
+  final RecipeService _service = RecipeService();
+  late Recipe _recipe;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _recipe = widget.recipe;
+    _loadDetail();
+  }
+
+  Future<void> _loadDetail() async {
+    final detailed = await _service.getRecipeDetail(widget.recipe);
+    if (mounted) {
+      setState(() {
+        _recipe = detailed;
+        _loading = false;
+      });
+    }
+  }
+
+  // HTML 태그 제거 (Spoonacular summary는 HTML 포함)
+  String _stripHtml(String s) =>
+      s.replaceAll(RegExp(r'<[^>]*>'), '').replaceAll('&amp;', '&');
+
+  @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Center(
-            child: Container(
-              width: 40, height: 4,
-              decoration: BoxDecoration(color: AppTheme.divider, borderRadius: BorderRadius.circular(2)),
-            ),
-          ),
-          const SizedBox(height: 20),
-          Text(recipe.title, style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              const Icon(Icons.timer_outlined, size: 16, color: AppTheme.textSecondary),
-              const SizedBox(width: 4),
-              Text('${recipe.readyInMinutes}분'),
-              const SizedBox(width: 16),
-              const Icon(Icons.people_outline, size: 16, color: AppTheme.textSecondary),
-              const SizedBox(width: 4),
-              Text('${recipe.servings}인분'),
-            ],
-          ),
-          if (recipe.summary != null) ...[
-            const SizedBox(height: 16),
-            Text('요리 소개', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
-            Text(recipe.summary!, style: Theme.of(context).textTheme.bodyLarge),
-          ],
-          const SizedBox(height: 16),
-          Text('보유 재료', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 4,
-            children: recipe.usedIngredients.map((i) => Chip(
-              label: Text(i),
-              backgroundColor: AppTheme.secondary.withOpacity(0.1),
-              side: BorderSide.none,
-            )).toList(),
-          ),
-          if (recipe.missedIngredients.isNotEmpty) ...[
+    final recipe = _recipe;
+    final maxHeight = MediaQuery.of(context).size.height * 0.9;
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxHeight: maxHeight),
+      child: Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
             const SizedBox(height: 12),
-            Text('필요 재료', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 4,
-              children: recipe.missedIngredients.map((i) => Chip(
-                label: Text(i),
-                backgroundColor: AppTheme.warning.withOpacity(0.1),
-                side: BorderSide.none,
-              )).toList(),
+            Center(
+              child: Container(
+                width: 40, height: 4,
+                decoration: BoxDecoration(color: AppTheme.divider, borderRadius: BorderRadius.circular(2)),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (recipe.imageUrl != null)
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(16),
+                        child: CachedNetworkImage(
+                          imageUrl: recipe.imageUrl!,
+                          height: 180,
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                          placeholder: (_, __) => Container(
+                            height: 180, color: AppTheme.divider,
+                            child: const Center(child: CircularProgressIndicator()),
+                          ),
+                          errorWidget: (_, __, ___) => Container(
+                            height: 100, color: AppTheme.divider,
+                            child: const Icon(Icons.restaurant, size: 40, color: AppTheme.textSecondary),
+                          ),
+                        ),
+                      ),
+                    const SizedBox(height: 16),
+                    Text(recipe.title, style: Theme.of(context).textTheme.titleLarge),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        const Icon(Icons.timer_outlined, size: 16, color: AppTheme.textSecondary),
+                        const SizedBox(width: 4),
+                        Text('${recipe.readyInMinutes}분'),
+                        const SizedBox(width: 16),
+                        const Icon(Icons.people_outline, size: 16, color: AppTheme.textSecondary),
+                        const SizedBox(width: 4),
+                        Text('${recipe.servings}인분'),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Text('보유 재료', style: Theme.of(context).textTheme.titleMedium),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 4,
+                      children: recipe.usedIngredients.map((i) => Chip(
+                        label: Text(i),
+                        backgroundColor: AppTheme.secondary.withOpacity(0.1),
+                        side: BorderSide.none,
+                      )).toList(),
+                    ),
+                    if (recipe.missedIngredients.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      Text('필요 재료', style: Theme.of(context).textTheme.titleMedium),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 4,
+                        children: recipe.missedIngredients.map((i) => Chip(
+                          label: Text(i),
+                          backgroundColor: AppTheme.warning.withOpacity(0.1),
+                          side: BorderSide.none,
+                        )).toList(),
+                      ),
+                    ],
+                    const SizedBox(height: 20),
+                    Text('조리 방법', style: Theme.of(context).textTheme.titleMedium),
+                    const SizedBox(height: 8),
+                    if (_loading)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 20),
+                        child: Center(child: CircularProgressIndicator()),
+                      )
+                    else if (recipe.instructions.isEmpty)
+                      Text('조리 방법 정보가 없습니다.',
+                          style: Theme.of(context).textTheme.bodyMedium)
+                    else
+                      ...recipe.instructions.asMap().entries.map((e) => Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              width: 26, height: 26,
+                              decoration: const BoxDecoration(
+                                color: AppTheme.primary,
+                                shape: BoxShape.circle,
+                              ),
+                              alignment: Alignment.center,
+                              child: Text('${e.key + 1}',
+                                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(_stripHtml(e.value),
+                                  style: Theme.of(context).textTheme.bodyLarge),
+                            ),
+                          ],
+                        ),
+                      )),
+                  ],
+                ),
+              ),
             ),
           ],
-          const SizedBox(height: 24),
-        ],
+        ),
       ),
     );
   }

@@ -9,6 +9,7 @@ class Recipe {
   final double matchScore;
   final String? sourceUrl;
   final String? summary;
+  final List<String> instructions;
 
   Recipe({
     required this.id,
@@ -21,7 +22,29 @@ class Recipe {
     required this.matchScore,
     this.sourceUrl,
     this.summary,
+    this.instructions = const [],
   });
+
+  Recipe copyWith({
+    List<String>? instructions,
+    String? summary,
+    int? readyInMinutes,
+    int? servings,
+  }) {
+    return Recipe(
+      id: id,
+      title: title,
+      imageUrl: imageUrl,
+      readyInMinutes: readyInMinutes ?? this.readyInMinutes,
+      servings: servings ?? this.servings,
+      usedIngredients: usedIngredients,
+      missedIngredients: missedIngredients,
+      matchScore: matchScore,
+      sourceUrl: sourceUrl,
+      summary: summary ?? this.summary,
+      instructions: instructions ?? this.instructions,
+    );
+  }
 
   factory Recipe.fromSpoonacular(Map<String, dynamic> map) {
     final used = (map['usedIngredients'] as List? ?? [])
