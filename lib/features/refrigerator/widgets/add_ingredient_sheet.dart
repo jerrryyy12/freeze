@@ -206,25 +206,38 @@ class _AddIngredientSheetState extends State<AddIngredientSheet> {
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
-    final provider = context.read<IngredientProvider>();
-    final ingredient = Ingredient(
-      id: widget.ingredient?.id,
-      name: _nameCtrl.text.trim(),
-      category: _category,
-      storageLocation: _storageLocation,
-      quantity: double.parse(_quantityCtrl.text),
-      unit: _unitCtrl.text.trim().isEmpty ? 'g' : _unitCtrl.text.trim(),
-      expiryDate: _expiryDate,
-      addedDate: widget.ingredient?.addedDate,
-      memo: _memoCtrl.text.trim().isEmpty ? null : _memoCtrl.text.trim(),
-    );
+    try {
+      final provider = context.read<IngredientProvider>();
+      final ingredient = Ingredient(
+        id: widget.ingredient?.id,
+        name: _nameCtrl.text.trim(),
+        category: _category,
+        storageLocation: _storageLocation,
+        quantity: double.parse(_quantityCtrl.text),
+        unit: _unitCtrl.text.trim().isEmpty ? 'g' : _unitCtrl.text.trim(),
+        expiryDate: _expiryDate,
+        addedDate: widget.ingredient?.addedDate,
+        memo: _memoCtrl.text.trim().isEmpty ? null : _memoCtrl.text.trim(),
+      );
 
-    if (_isEdit) {
-      await provider.updateIngredient(ingredient);
-    } else {
-      await provider.addIngredient(ingredient);
+      if (_isEdit) {
+        await provider.updateIngredient(ingredient);
+      } else {
+        await provider.addIngredient(ingredient);
+      }
+
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(_isEdit ? '수정되었습니다' : '냉장고에 추가되었습니다')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('오류: $e'), backgroundColor: Colors.red),
+        );
+      }
     }
-
-    if (mounted) Navigator.pop(context);
   }
 }
