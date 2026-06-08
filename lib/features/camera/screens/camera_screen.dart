@@ -173,7 +173,11 @@ class _CameraScreenState extends State<CameraScreen> {
     await provider.addIngredient(ingredient);
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${p.koreanName} 냉장고에 추가됐습니다')),
+        SnackBar(
+          content: Text('${p.koreanName} 냉장고에 추가됐습니다'),
+          behavior: SnackBarBehavior.floating,
+          margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        ),
       );
     }
   }

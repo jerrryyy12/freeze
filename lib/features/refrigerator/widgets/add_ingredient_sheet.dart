@@ -52,8 +52,10 @@ class _AddIngredientSheetState extends State<AddIngredientSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final bottomPad = MediaQuery.of(context).viewInsets.bottom;
-    final maxHeight = MediaQuery.of(context).size.height * 0.9;
+    final mq = MediaQuery.of(context);
+    // 키보드(viewInsets) + 시스템 제스처 바(viewPadding) 둘 다 반영
+    final bottomPad = mq.viewInsets.bottom + mq.viewPadding.bottom;
+    final maxHeight = mq.size.height * 0.9;
     return ConstrainedBox(
       constraints: BoxConstraints(maxHeight: maxHeight),
       child: Container(
