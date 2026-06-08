@@ -3,9 +3,12 @@ class AppConstants {
   static const String dbName = 'freeze.db';
   static const int dbVersion = 1;
 
-  // 외부 레시피 API (Spoonacular)
-  static const String recipeBaseUrl = 'https://api.spoonacular.com';
-  static const String recipeApiKey = 'YOUR_SPOONACULAR_API_KEY';
+  // 식품안전처(식품안전나라) 조리식품 레시피 API
+  // 키 발급: https://www.foodsafetykorea.go.kr/api/openApiInfo.do
+  // 'sample' 키는 테스트용으로 일부 데이터만 반환됩니다.
+  static const String recipeApiBase = 'http://openapi.foodsafetykorea.go.kr/api';
+  static const String recipeApiKey = 'sample';
+  static const String recipeServiceId = 'COOKRCP01';
 
   // 유통기한 경고 기준 (일)
   static const int expiryWarningDays = 3;
