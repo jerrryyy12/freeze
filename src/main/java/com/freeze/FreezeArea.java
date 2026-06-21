@@ -68,7 +68,7 @@ public class FreezeArea {
     public String describe() {
         if (!isConfigured()) return "설정되지 않음";
         return String.format("[%s] (%d,%d,%d) ~ (%d,%d,%d) / %s",
-                worldKey.location(), minX(), minY(), minZ(), maxX(), maxY(), maxZ(),
+                worldKey.identifier(), minX(), minY(), minZ(), maxX(), maxY(), maxZ(),
                 enabled ? "활성" : "비활성");
     }
 }
