@@ -12,7 +12,7 @@ base {
     archivesName = mod_id
 }
 
-java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+java.toolchain.languageVersion = JavaLanguageVersion.of(25)
 
 minecraft {
     mappings channel: mapping_channel, version: mapping_version
