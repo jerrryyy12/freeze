@@ -1,0 +1,28 @@
+name: Freeze
+version: ${project.version}
+main: com.freeze.FreezePlugin
+api-version: '1.21'
+author: freeze
+description: 지정한 사각형 영역 밖으로 나가면 즉시 사망하는 플러그인
+
+commands:
+  freeze:
+    description: Freeze 플러그인 명령어
+    usage: |
+      /freeze pos1 - 현재 위치를 1번 모서리로 설정
+      /freeze pos2 - 현재 위치를 2번 모서리로 설정
+      /freeze set <x1> <y1> <z1> <x2> <y2> <z2> - 좌표 직접 입력
+      /freeze on - 영역 활성화
+      /freeze off - 영역 비활성화
+      /freeze info - 현재 설정 보기
+      /freeze show - 영역 경계에 파티클 표시 (10초)
+    permission: freeze.admin
+    aliases: [fz]
+
+permissions:
+  freeze.admin:
+    description: Freeze 플러그인 관리 권한
+    default: op
+  freeze.bypass:
+    description: 영역 밖으로 나가도 죽지 않음
+    default: false
