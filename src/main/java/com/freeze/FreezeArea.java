@@ -2,7 +2,7 @@ package com.freeze;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceKey;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.Level;
 
@@ -32,7 +32,7 @@ public class FreezeArea {
     }
 
     public void setCorner(int index, ServerPlayer player) {
-        this.worldKey = player.serverLevel().dimension();
+        this.worldKey = ((ServerLevel) player.level()).dimension();
         BlockPos pos = player.blockPosition();
         if (index == 1) {
             x1 = pos.getX(); y1 = pos.getY(); z1 = pos.getZ();
@@ -49,7 +49,7 @@ public class FreezeArea {
 
     public boolean contains(ServerPlayer player) {
         if (!isConfigured()) return false;
-        if (!player.serverLevel().dimension().equals(worldKey)) return false;
+        if (!((ServerLevel) player.level()).dimension().equals(worldKey)) return false;
         double x = player.getX();
         double y = player.getY();
         double z = player.getZ();
@@ -67,9 +67,8 @@ public class FreezeArea {
 
     public String describe() {
         if (!isConfigured()) return "설정되지 않음";
-        ResourceLocation id = worldKey.location();
         return String.format("[%s] (%d,%d,%d) ~ (%d,%d,%d) / %s",
-                id, minX(), minY(), minZ(), maxX(), maxY(), maxZ(),
+                worldKey.location(), minX(), minY(), minZ(), maxX(), maxY(), maxZ(),
                 enabled ? "활성" : "비활성");
     }
 }

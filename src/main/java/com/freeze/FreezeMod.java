@@ -9,9 +9,8 @@ import net.minecraft.world.level.GameType;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.event.TickEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.eventbus.api.listener.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
-import org.joml.Vector3f;
 import org.slf4j.Logger;
 
 @Mod(FreezeMod.MOD_ID)
@@ -20,8 +19,9 @@ public class FreezeMod {
     public static final Logger LOGGER = LogUtils.getLogger();
     public static final FreezeArea AREA = new FreezeArea();
 
+    // 빨간 파티클 (RGB 0xFF1A1A, 크기 1.5)
     private static final DustParticleOptions RED_DUST =
-            new DustParticleOptions(new Vector3f(1.0f, 0.1f, 0.1f), 1.5f);
+            new DustParticleOptions(0xFF1A1A, 1.5f);
     private static final double PARTICLE_STEP = 1.5;
     private static final int PARTICLE_INTERVAL_TICKS = 10;
 
@@ -38,20 +38,20 @@ public class FreezeMod {
     }
 
     @SubscribeEvent
-    public void onServerTick(TickEvent.ServerTickEvent event) {
-        if (event.phase != TickEvent.Phase.END) return;
+    public void onServerTick(TickEvent.ServerTickEvent.Post event) {
         if (!AREA.isEnabled()) return;
 
-        for (ServerPlayer player : event.getServer().getPlayerList().getPlayers()) {
+        MinecraftServer server = event.server();
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             GameType mode = player.gameMode.getGameModeForPlayer();
             if (mode == GameType.CREATIVE || mode == GameType.SPECTATOR) continue;
             if (!AREA.contains(player)) {
-                player.kill(player.serverLevel());
+                player.kill((ServerLevel) player.level());
             }
         }
 
         if (tickCounter++ % PARTICLE_INTERVAL_TICKS == 0) {
-            renderBoundary(event.getServer());
+            renderBoundary(server);
         }
     }
 

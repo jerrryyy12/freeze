@@ -6,13 +6,14 @@ import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 
 public class FreezeCommand {
 
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
         dispatcher.register(Commands.literal("freeze")
-                .requires(s -> s.hasPermission(2))
+                .requires(Commands.hasPermission(2))
                 .then(Commands.literal("pos1").executes(ctx -> setPos(ctx, 1)))
                 .then(Commands.literal("pos2").executes(ctx -> setPos(ctx, 2)))
                 .then(Commands.literal("on").executes(ctx -> toggle(ctx, true)))
@@ -51,7 +52,7 @@ public class FreezeCommand {
     private record BlockInfo(int x, int y, int z, String dim) {
         BlockInfo(ServerPlayer p) {
             this(p.blockPosition().getX(), p.blockPosition().getY(), p.blockPosition().getZ(),
-                    p.serverLevel().dimension().location().toString());
+                    ((ServerLevel) p.level()).dimension().location().toString());
         }
     }
 }
