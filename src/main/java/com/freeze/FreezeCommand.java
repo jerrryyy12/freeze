@@ -25,6 +25,10 @@ public class FreezeCommand {
     private static int setPos(CommandContext<CommandSourceStack> ctx, int index) throws CommandSyntaxException {
         ServerPlayer player = ctx.getSource().getPlayerOrException();
         FreezeMod.AREA.setCorner(index, player);
+        // 활성 상태면 월드보더 갱신
+        if (FreezeMod.AREA.isEnabled()) {
+            FreezeMod.applyBorder(ctx.getSource().getServer());
+        }
         BlockInfo info = new BlockInfo(player);
         ctx.getSource().sendSuccess(() -> Component.literal(
                 String.format("§a%d번 모서리 설정됨: (%d, %d, %d) @ %s",
@@ -38,8 +42,13 @@ public class FreezeCommand {
             return 0;
         }
         FreezeMod.AREA.setEnabled(on);
+        if (on) {
+            FreezeMod.applyBorder(ctx.getSource().getServer());
+        } else {
+            FreezeMod.clearBorder(ctx.getSource().getServer());
+        }
         ctx.getSource().sendSuccess(() -> Component.literal(
-                on ? "§aFreeze 활성화됨." : "§eFreeze 비활성화됨."), false);
+                on ? "§aFreeze 활성화됨 (월드보더 표시)." : "§eFreeze 비활성화됨."), false);
         return 1;
     }
 
