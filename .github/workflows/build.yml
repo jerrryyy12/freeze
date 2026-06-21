@@ -1,4 +1,4 @@
-name: Build Plugin
+name: Build Mod
 
 on:
   push:
@@ -16,19 +16,25 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
-          cache: maven
 
-      - name: List available paper-api versions
+      - name: List available Forge versions for 1.26.2
         run: |
-          echo "=== paper-api versions ==="
-          curl -s https://repo.papermc.io/repository/maven-public/io/papermc/paper/paper-api/maven-metadata.xml | grep -oE '<version>[^<]+</version>' | tail -30
+          echo "=== Forge versions ==="
+          curl -s https://maven.minecraftforge.net/net/minecraftforge/forge/maven-metadata.xml | grep -oE '<version>1\.26\.2-[^<]+</version>' | tail -20 || echo "1.26.2용 Forge 없음"
+          echo
+          echo "=== 가장 최신 Forge 버전들 ==="
+          curl -s https://maven.minecraftforge.net/net/minecraftforge/forge/maven-metadata.xml | grep -oE '<version>[^<]+</version>' | tail -10
 
-      - name: Build with Maven
-        run: mvn -B clean package
+      - name: Make gradlew executable
+        run: chmod +x gradlew
 
-      - name: Upload jar
+      - name: Build with Gradle
+        run: ./gradlew build --no-daemon --stacktrace
+
+      - name: Upload mod jar
+        if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: Freeze-jar
-          path: target/Freeze-*.jar
+          name: Freeze-mod-jar
+          path: build/libs/*.jar
           if-no-files-found: error
