@@ -50,10 +50,11 @@ public class FreezeArea {
     public boolean contains(ServerPlayer player) {
         if (!isConfigured()) return false;
         if (!((ServerLevel) player.level()).dimension().equals(worldKey)) return false;
-        // 월드보더와 동일한 정사각형 판정 (위아래는 무제한)
+        // 직사각형(X/Z) 판정, 위아래(Y)는 무제한
         double x = player.getX();
         double z = player.getZ();
-        return Math.abs(x - centerX()) <= half() && Math.abs(z - centerZ()) <= half();
+        return x >= minX() && x <= maxX() + 1
+                && z >= minZ() && z <= maxZ() + 1;
     }
 
     public int minX() { return Math.min(x1, x2); }
@@ -63,20 +64,10 @@ public class FreezeArea {
     public int minZ() { return Math.min(z1, z2); }
     public int maxZ() { return Math.max(z1, z2); }
 
-    // 월드보더용: 두 모서리에서 정사각형(중심 + 한 변=긴 쪽) 산출
-    public double centerX() { return (minX() + maxX() + 1) / 2.0; }
-    public double centerZ() { return (minZ() + maxZ() + 1) / 2.0; }
-    public double size() {
-        double xLen = (maxX() - minX()) + 1;
-        double zLen = (maxZ() - minZ()) + 1;
-        return Math.max(xLen, zLen);
-    }
-    public double half() { return size() / 2.0; }
-
     public String describe() {
         if (!isConfigured()) return "설정되지 않음";
-        return String.format("[%s] 중심(%.1f, %.1f) 한 변 %.0f칸 / 위아래 무제한 / %s",
-                worldKey.identifier(), centerX(), centerZ(), size(),
+        return String.format("[%s] (%d, %d) ~ (%d, %d) / 위아래 무제한 / %s",
+                worldKey.identifier(), minX(), minZ(), maxX(), maxZ(),
                 enabled ? "활성" : "비활성");
     }
 }
