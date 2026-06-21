@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<style>
+  @page { size: A4; margin: 14mm 15mm; }
+  * { font-family: 'WenQuanYi Zen Hei', sans-serif; box-sizing: border-box; }
+  body { margin: 0; color: #1a1a1a; font-size: 10.5pt; line-height: 1.5; }
+  h1 { font-size: 17pt; margin: 0 0 2px; color: #111; }
+  .sub { color: #666; font-size: 9pt; margin: 0 0 12px; }
+  h2 { font-size: 12pt; margin: 14px 0 6px; padding: 4px 8px; background: #00ffa3;
+       color: #062a1f; border-radius: 5px; }
+  p { margin: 4px 0; }
+  table { width: 100%; border-collapse: collapse; margin: 6px 0; font-size: 9pt; }
+  th, td { border: 1px solid #ccc; padding: 5px 7px; text-align: left; vertical-align: top; }
+  th { background: #f0f0f0; }
+  code { font-family: 'WenQuanYi Zen Hei Mono', monospace; background: #f4f4f4;
+         padding: 1px 4px; border-radius: 3px; font-size: 8.5pt; color: #b5008a; }
+  .box { background: #f7fff9; border: 1px solid #00ffa3; border-radius: 6px;
+         padding: 8px 12px; margin: 6px 0; }
+  .bad { color: #c0392b; font-weight: bold; }
+  .good { color: #1a8f4c; font-weight: bold; }
+  ul { margin: 4px 0; padding-left: 20px; }
+  li { margin: 2px 0; }
+  .foot { margin-top: 14px; font-size: 8pt; color: #888; border-top: 1px solid #ddd; padding-top: 6px; }
+</style>
+</head>
+<body>
+  <h1>치지직 채팅 오버레이 CSS — 문제점과 해결 방법</h1>
+  <p class="sub">OBS 브라우저 소스용 채팅 커스텀 CSS가 갑자기 안 먹을 때</p>
+
+  <h2>1. 무슨 일이 일어났나</h2>
+  <p>어느 날 갑자기 채팅 디자인(흰 말풍선 / 닉네임 숨김 / 글자색 등)이 <span class="bad">전부 사라지고</span>
+  치지직 기본 채팅으로 나옵니다. CSS 내용은 그대로인데 아무것도 적용되지 않습니다.</p>
+
+  <h2>2. 원인 — 치지직이 클래스 이름을 바꿈</h2>
+  <p>CSS는 <code>live_chatting_message_wrapper</code> 처럼 <b>의미 있는 클래스 이름</b>으로 채팅 요소를 찾습니다.
+  그런데 치지직이 사이트를 업데이트하면서 이름을 <code>_item_f6gts_20</code> 처럼
+  <b>해시(임의 문자열)가 붙은 이름</b>으로 바꿨습니다.</p>
+  <table>
+    <tr><th>기존 (지금 안 먹는 이름)</th><th>바뀐 실제 이름</th></tr>
+    <tr><td><code>live_overlay_item</code></td><td><code>_item_f6gts_20</code></td></tr>
+    <tr><td><code>live_chatting_message_text</code></td><td><code>_text_1s877_1</code></td></tr>
+    <tr><td><code>live_chatting_username_...</code></td><td><code>_container_o04z9_2</code></td></tr>
+  </table>
+  <p>기존 CSS는 <code>[class^=live_...]</code> (<b>~로 시작</b>) 으로 찾는데, 새 이름은 <code>live_</code> 로
+  시작하지 않으니 <span class="bad">하나도 못 잡아서</span> 스타일이 통째로 죽은 것입니다.</p>
+
+  <h2>3. 해결 방법</h2>
+  <p>셀렉터를 <b>"이름으로 시작"</b> 에서 <b>"이름 일부 포함"</b> 으로 바꿉니다.</p>
+  <div class="box">
+    <p style="margin:0"><span class="bad">기존:</span> <code>[class^=live_overlay_item]</code></p>
+    <p style="margin:0"><span class="good">수정:</span> <code>[class*="_item_"]</code></p>
+  </div>
+  <table>
+    <tr><th>용도</th><th>수정 후 셀렉터</th></tr>
+    <tr><td>채팅 전체 컨테이너</td><td><code>[class*="_chatting_"]</code></td></tr>
+    <tr><td>채팅 한 줄 (말풍선)</td><td><code>[class*="_item_"]</code></td></tr>
+    <tr><td>메시지 글자</td><td><code>[class*="_text_"]</code></td></tr>
+    <tr><td>닉네임 숨기기</td><td><code>[class*="_wrapper_"] &gt; [class*="_container_"]:first-child</code></td></tr>
+  </table>
+
+  <h2>4. 왜 이 방법이 더 안전한가</h2>
+  <ul>
+    <li>해시(<code>f6gts</code>, <code>o04z9</code>)는 치지직이 업데이트할 때마다 <b>또 바뀝니다.</b></li>
+    <li><code>[class*="_item_"]</code> 처럼 <b>의미 부분만</b> 잡으면 해시가 바뀌어도 계속 작동합니다.</li>
+    <li>닉네임은 이름이 아니라 <b>위치</b>(글자 바로 앞 요소)로 잡아서 더 잘 버팁니다.</li>
+  </ul>
+
+  <div class="box">
+    <b>다음에 또 깨지면?</b> 브라우저에서 채팅 글자를 <b>우클릭 → 검사(F12)</b> 로 새 클래스 이름을
+    확인하고, 위 표의 셀렉터를 그 이름에 맞게 고치면 됩니다.
+  </div>
+
+  <p class="foot">치지직(Chzzk) 채팅 오버레이 커스텀 CSS 정리 · 2026</p>
+</body>
+</html>
