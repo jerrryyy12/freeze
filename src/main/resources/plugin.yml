@@ -1,7 +1,7 @@
 name: Freeze
 version: ${project.version}
 main: com.freeze.FreezePlugin
-api-version: '1.21'
+api-version: '1.26'
 author: freeze
 description: 지정한 사각형 영역 밖으로 나가면 즉시 사망하는 플러그인
 

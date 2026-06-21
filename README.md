@@ -10,7 +10,7 @@ mvn clean package
 
 빌드된 `target/Freeze-1.0.0.jar` 파일을 서버의 `plugins/` 폴더에 넣고 재시작하세요.
 
-> Paper API는 `pom.xml`에서 `1.21.4-R0.1-SNAPSHOT`로 설정되어 있습니다. 사용 중인 서버 버전에 맞춰 변경하세요.
+> Paper API는 `pom.xml`에서 `1.26.2-R0.1-SNAPSHOT`으로 설정되어 있습니다.
 
 ## 명령어
 
