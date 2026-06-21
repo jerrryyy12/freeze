@@ -22,7 +22,9 @@ public class FreezeMod {
     // 빨간 파티클 (RGB 0xFF1A1A, 크기 1.5)
     private static final DustParticleOptions RED_DUST =
             new DustParticleOptions(0xFF1A1A, 1.5f);
-    private static final double PARTICLE_STEP = 1.5;
+    private static final double PARTICLE_STEP = 1.5;   // 수평 외곽선 간격
+    private static final double PILLAR_STEP = 2.0;     // 모서리 기둥 세로 간격
+    private static final double FRAME_STEP = 8.0;      // 수평 외곽선을 그리는 높이 간격
     private static final int PARTICLE_INTERVAL_TICKS = 10;
 
     private int tickCounter = 0;
@@ -61,28 +63,30 @@ public class FreezeMod {
 
         double minX = AREA.minX();
         double maxX = AREA.maxX() + 1;
-        double minY = AREA.minY();
-        double maxY = AREA.maxY() + 1;
         double minZ = AREA.minZ();
         double maxZ = AREA.maxZ() + 1;
+        // 위아래는 월드 높이 전체
+        double minY = level.getMinY();
+        double maxY = level.getMaxY();
 
-        for (double x = minX; x <= maxX; x += PARTICLE_STEP) {
-            spawn(level, x, minY, minZ);
-            spawn(level, x, minY, maxZ);
-            spawn(level, x, maxY, minZ);
-            spawn(level, x, maxY, maxZ);
-        }
-        for (double y = minY; y <= maxY; y += PARTICLE_STEP) {
+        // 4개 모서리 기둥 (월드 바닥~천장)
+        for (double y = minY; y <= maxY; y += PILLAR_STEP) {
             spawn(level, minX, y, minZ);
             spawn(level, minX, y, maxZ);
             spawn(level, maxX, y, minZ);
             spawn(level, maxX, y, maxZ);
         }
-        for (double z = minZ; z <= maxZ; z += PARTICLE_STEP) {
-            spawn(level, minX, minY, z);
-            spawn(level, minX, maxY, z);
-            spawn(level, maxX, minY, z);
-            spawn(level, maxX, maxY, z);
+
+        // 수평 사각형 외곽선 (일정 높이마다)
+        for (double y = minY; y <= maxY; y += FRAME_STEP) {
+            for (double x = minX; x <= maxX; x += PARTICLE_STEP) {
+                spawn(level, x, y, minZ);
+                spawn(level, x, y, maxZ);
+            }
+            for (double z = minZ; z <= maxZ; z += PARTICLE_STEP) {
+                spawn(level, minX, y, z);
+                spawn(level, maxX, y, z);
+            }
         }
     }
 

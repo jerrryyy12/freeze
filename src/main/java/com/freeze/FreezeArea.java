@@ -50,11 +50,10 @@ public class FreezeArea {
     public boolean contains(ServerPlayer player) {
         if (!isConfigured()) return false;
         if (!((ServerLevel) player.level()).dimension().equals(worldKey)) return false;
+        // 위아래(Y)는 월드 높이 전체로 제한 없음 — 좌우(X/Z)만 판정
         double x = player.getX();
-        double y = player.getY();
         double z = player.getZ();
         return x >= minX() && x <= maxX() + 1
-                && y >= minY() && y <= maxY() + 1
                 && z >= minZ() && z <= maxZ() + 1;
     }
 
