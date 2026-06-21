@@ -1,24 +1,24 @@
 modLoader="javafml"
-loaderVersion="${loader_version_range}"
-license="${mod_license}"
+loaderVersion="[65,)"
+license="MIT"
 
 [[mods]]
-modId="${mod_id}"
-version="${mod_version}"
-displayName="${mod_name}"
-authors="${mod_authors}"
-description='''${mod_description}'''
+modId="freeze"
+version="1.0.0"
+displayName="Freeze"
+authors="freeze"
+description='''지정한 사각형 영역 밖으로 나가면 즉시 사망하는 모드'''
 
-[[dependencies.${mod_id}]]
+[[dependencies.freeze]]
     modId="forge"
     mandatory=true
-    versionRange="${forge_version_range}"
+    versionRange="[65,)"
     ordering="NONE"
     side="BOTH"
 
-[[dependencies.${mod_id}]]
+[[dependencies.freeze]]
     modId="minecraft"
     mandatory=true
-    versionRange="${minecraft_version_range}"
+    versionRange="[26.2,)"
     ordering="NONE"
     side="BOTH"

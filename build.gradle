@@ -1,77 +1,53 @@
+// Forge 1.26.2 (26.2) mod - 공식 MDK 기반 (ForgeGradle 7)
 plugins {
-    id 'eclipse'
+    id 'java'
     id 'idea'
-    id 'maven-publish'
-    id 'net.minecraftforge.gradle' version '[6.0.16,6.2)'
+    id 'eclipse'
+    id 'net.minecraftforge.gradle' version '[7.0.17,8)'
 }
 
-version = mod_version
-group = mod_group_id
-
+version = '1.0.0'
+group = 'com.freeze'
 base {
-    archivesName = mod_id
+    archivesName = 'freeze'
 }
 
+// Mojang은 26.1+ 부터 Java 25를 배포 -> 모드도 Java 25 타겟
 java.toolchain.languageVersion = JavaLanguageVersion.of(25)
 
-minecraft {
-    mappings channel: mapping_channel, version: mapping_version
-
-    runs {
-        configureEach {
-            workingDirectory project.file('run')
-            property 'forge.logging.markers', 'REGISTRIES'
-            property 'forge.logging.console.level', 'debug'
-            mods {
-                "${mod_id}" {
-                    source sourceSets.main
-                }
-            }
-        }
-        client {}
-        server {}
-    }
-}
-
+// 생성 리소스 포함
 sourceSets.main.resources { srcDir 'src/generated/resources' }
 
-repositories {}
+minecraft {
+    runs {
+        configureEach {
+            workingDir = layout.projectDirectory.dir('run')
+
+            systemProperty 'eventbus.api.strictRuntimeChecks', 'true'
+            systemProperty 'forge.enabledGameTestNamespaces', 'freeze'
+        }
+
+        register('client')
+
+        register('server') {
+            args '--nogui'
+        }
+
+        register('gameTestServer')
+    }
+}
+
+repositories {
+    minecraft.mavenizer(it)
+    maven fg.forgeMaven
+    maven fg.minecraftLibsMaven
+    mavenCentral()
+}
 
 dependencies {
-    minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
+    implementation minecraft.dependency('net.minecraftforge:forge:26.2-65.0.0')
 }
 
-tasks.named('processResources', ProcessResources).configure {
-    var replaceProperties = [
-        minecraft_version: minecraft_version,
-        minecraft_version_range: minecraft_version_range,
-        forge_version: forge_version,
-        forge_version_range: forge_version_range,
-        loader_version_range: loader_version_range,
-        mod_id: mod_id,
-        mod_name: mod_name,
-        mod_license: mod_license,
-        mod_version: mod_version,
-        mod_authors: mod_authors,
-        mod_description: mod_description,
-    ]
-    inputs.properties replaceProperties
-    filesMatching(['META-INF/mods.toml', 'pack.mcmeta']) {
-        expand replaceProperties
-    }
-}
-
-jar {
-    manifest {
-        attributes([
-            'Specification-Title'     : mod_id,
-            'Specification-Vendor'    : mod_authors,
-            'Specification-Version'   : '1',
-            'Implementation-Title'    : project.name,
-            'Implementation-Version'  : project.jar.archiveVersion,
-            'Implementation-Vendor'   : mod_authors,
-            'Implementation-Timestamp': new Date().format("yyyy-MM-dd'T'HH:mm:ssZ")
-        ])
-    }
-    finalizedBy 'reobfJar'
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
 }

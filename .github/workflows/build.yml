@@ -1,0 +1,35 @@
+name: Build Mod
+
+on:
+  push:
+    branches: ['**']
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Java 25(컴파일 툴체인) + Java 21(Gradle 8.12.1 실행)
+      - name: Set up JDKs
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: |
+            25
+            21
+
+      - name: Make gradlew executable
+        run: chmod +x gradlew
+
+      - name: Build with Gradle
+        run: ./gradlew build --no-daemon --stacktrace -Porg.gradle.java.installations.fromEnv=JAVA_HOME_25_X64,JAVA_HOME_21_X64
+
+      - name: Upload mod jar
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Freeze-mod-jar
+          path: build/libs/*.jar
+          if-no-files-found: error
