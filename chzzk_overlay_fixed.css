@@ -1,0 +1,145 @@
+/* version=6 (fixed) */
+:root {
+    ;--폰트-사이즈: 22px    /* 20px ~ 30px 권장 */
+    ;--폰트-색상: #222    /* 시청자 채팅 메시지만 */
+    ;--배경-색상: #fff
+
+    ;--닉네임-표시: unset    /* 표시: unset, 숨기기: none */
+    ;--아이콘-표시: unset    /* 표시: unset, 숨기기: none */
+    ;--닉네임-영역: unset    /* 닉네임과 아이콘을 모두 제거하려는 경우 none으로 해주세요. */
+
+    ;--모서리-둥글기: 0.8em    /* 0.2em ~ 1.2em 권장 */
+    ;--채팅창-정렬: start    /* 왼쪽: start, 오른쪽: end */
+}
+/* 폰트 다운로드 */
+@font-face {
+    font-family: 'GmarketSans';
+    src: url('https://fastly.jsdelivr.net/gh/projectnoonnu/noonfonts_2001@1.1/GmarketSansMedium.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+}
+@font-face {
+    font-family: 'GmarketSansB';
+    src: url('https://fastly.jsdelivr.net/gh/projectnoonnu/noonfonts_2001@1.1/GmarketSansBold.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+}
+
+/* 기존 스타일 제거 (해시 제거 → 치지직 업데이트에도 안 깨짐) */
+[class *= "live_chatting_message_container"][class *= "live_chatting_message_is_overlay"] [class *= "live_chatting_message_wrapper"] {
+    font-size: unset
+    ;line-height: unset
+}
+[class *= "live_chatting_message_container"][class *= "live_chatting_message_is_overlay"] [class *= "live_chatting_message_text"] img {
+    margin: unset
+}
+
+/* 스타일 적용*/
+#root {
+    position: relative
+    ;height: 100vh
+    ;overflow: visible
+    ;-webkit-mask-image: -webkit-gradient(linear, left bottom, left top, from(rgba(0,0,0,1)), color-stop(0.70, rgba(0,0,0,1)), to(rgba(0,0,0,1)))
+}
+#root > [class *= "live_overlay_chatting"] {
+    display: flex;
+    padding: 1em 0.4em;
+
+    overflow: visible;
+    width: calc(100% - 20px);
+    mask-image: unset;
+    font-size: var(--폰트-사이즈);
+    align-items: var(--채팅창-정렬);
+
+}
+[class *= "live_overlay_item"][class *= "live_overlay_message"] {
+    width: fit-content
+    ;margin: 0em 0.2em 0em 0.2em
+    ;animation: rise .4s cubic-bezier(0, 0.62, 0.15, 0.98) forwards, fd .2s cubic-bezier(0.23, 0.73, 0.66, 0.99) forwards, ririse .45s cubic-bezier(0, 1.44, 0.13, 1) forwards
+    ;position: relative
+    ;padding: 0.22em 0.5em 0.2em 0.5em
+    ;word-break: break-all
+    ;border-radius: var(--모서리-둥글기)
+    ;background: var(--배경-색상)
+    ;box-shadow: 0px 16px 16.7px rgba(0, 0, 0, 0.05)
+    ;max-width: unset
+    ;font-size: var(--폰트-사이즈)
+    ;line-height: 1.2em
+}
+[class *= "live_chatting_username_icon"] img { /* 아이콘 */
+    height: 1.2em
+    ;width: auto
+    ;margin-top: 0.05em
+
+}
+[class *= "live_overlay_item"][class *= "live_overlay_message"] span[class *= "username_container"] span {
+    font-family: 'GmarketSansB',-apple-system,BlinkMacSystemFont,Apple SD Gothic Neo,Helvetica,Arial,NanumGothic,나눔고딕,Malgun Gothic,맑은 고딕,Dotum,굴림,gulim,새굴림,noto sans,돋움,sans-serif
+    ;font-weight: 700
+    ;font-size: var(--폰트-사이즈)
+    ;line-height: 120%
+    ;display: var(--닉네임-영역)!important
+}
+[class *= "live_overlay_item"][class *= "live_overlay_message"] span[class *= "username_nickname"] span {
+    ;display: var(--닉네임-표시)!important
+}
+[class *= "live_overlay_item"][class *= "live_overlay_message"] span[class *= "username_wrapper"] span {
+    ;display: var(--아이콘-표시)!important
+}
+[class *= "live_overlay_item"][class *= "live_overlay_message"] span[class *= "chatting_message_text"] {
+    font-family: 'GmarketSans',-apple-system,BlinkMacSystemFont,Apple SD Gothic Neo,Helvetica,Arial,NanumGothic,나눔고딕,Malgun Gothic,맑은 고딕,Dotum,굴림,gulim,새굴림,noto sans,돋움,sans-serif
+    ;font-weight: 500
+    ;font-size: var(--폰트-사이즈)
+    ;color: var(--폰트-색상)
+    ;line-height: 120%
+}
+[class *= "live_chatting_message_text"] img {
+    height: 1.2em
+    ;width: auto
+    ;margin: -0.04em 0.06em 0em 0.06em!important
+    ;border-radius: 0.12em
+}
+@keyframes rise {
+    0% { margin: 0em 1em -2em 1em }
+    100% { margin: 0em 1em 0.4em 1em }
+}
+@keyframes ririse {
+    0% { transform: translateX(0px) translateY(60px) }
+    100% { transform: translateX(0px) translateY(0px) }
+}
+@keyframes fd {
+    0% { opacity: 0 }
+    100% { opacity: 1 }
+}
+@keyframes disappear {
+    0% {
+        opacity: 1;
+        visibility: visible;
+    }
+	99% {
+        opacity: 1; /* 59초까지는 보임 */
+        visibility: visible; /* 계속 보임 */
+	}
+    100% {
+        opacity: 0;
+        visibility: hidden;
+    }
+}
+
+/* 기존 스타일에 애니메이션 추가 */
+[class *= "live_overlay_item"][class *= "live_overlay_message"] {
+    width: fit-content;
+    margin: 0em 0.2em 0em 0.2em;
+    animation: rise .4s cubic-bezier(0.11, 0.9, 0.15, 0.98) forwards,
+              fd .2s cubic-bezier(0.23, 0.73, 0.66, 0.99) forwards,
+              ririse .45s cubic-bezier(0, 1.44, 0.13, 1) forwards,
+              disappear 120s forwards; /* 120초 후에 바로 사라짐 */
+    position: relative;
+    padding: 0.22em 0.5em 0.2em 0.5em;
+    word-break: break-all;
+    border-radius: var(--모서리-둥글기);
+    background: var(--배경-색상);
+    box-shadow: 0px 16px 16.7px rgba(0, 0, 0, 0.05);
+    max-width: unset;
+    font-size: var(--폰트-사이즈);
+    line-height: 1.2em;
+}
