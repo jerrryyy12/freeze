@@ -51,6 +51,20 @@ public class BangGame {
         return players.remove(id) != null;
     }
 
+    /** 테스트용 패시브 봇 추가 */
+    public boolean addBot(String name) {
+        if (state != State.LOBBY || players.size() >= 7) return false;
+        BangPlayer bot = new BangPlayer(UUID.randomUUID(), name);
+        bot.isBot = true;
+        players.put(bot.id, bot);
+        return true;
+    }
+
+    private boolean anyHumanAlive() {
+        for (BangPlayer p : order) if (p.alive && !p.isBot) return true;
+        return false;
+    }
+
     public BangPlayer findByName(String name) {
         for (BangPlayer p : order.isEmpty() ? players.values() : order) {
             if (p.name.equalsIgnoreCase(name)) return p;
@@ -199,6 +213,11 @@ public class BangGame {
             if (c != null) p.hand.add(c);
         }
         broadcast(server, "§b▶ " + p.name + " 님의 턴 §7(체력 " + p.hp + "/" + p.maxHp + ", 손패 " + p.hand.size() + ")");
+        if (p.isBot) {
+            // 패시브 봇: 사람이 살아있으면 바로 턴 종료(아니면 무한 재귀 방지로 멈춤)
+            if (anyHumanAlive()) endTurn(server, p);
+            return;
+        }
         msg(server, p.id, "§a당신의 턴! §7/bang hand 확인 · /bang play <번호> [대상] · /bang end");
     }
 

@@ -23,6 +23,7 @@ public class BangCommands {
         dispatcher.register(Commands.literal("bang")
                 .then(Commands.literal("create").executes(BangCommands::create))
                 .then(Commands.literal("join").executes(BangCommands::join))
+                .then(Commands.literal("addbot").executes(BangCommands::addbot))
                 .then(Commands.literal("leave").executes(BangCommands::leave))
                 .then(Commands.literal("start").executes(BangCommands::start))
                 .then(Commands.literal("stop").executes(BangCommands::stop))
@@ -65,6 +66,16 @@ public class BangCommands {
         if (g.contains(sp.getUUID())) { ctx.getSource().sendFailure(Component.literal("§c이미 참가했습니다.")); return 0; }
         if (!g.addPlayer(sp.getUUID(), sp.getName().getString())) { ctx.getSource().sendFailure(Component.literal("§c정원이 찼습니다(최대 7명).")); return 0; }
         announce(ctx.getSource().getServer(), "§6[BANG] §f" + sp.getName().getString() + " 참가 §7(" + g.size() + "명)");
+        return 1;
+    }
+
+    private static int addbot(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
+        ServerPlayer sp = ctx.getSource().getPlayerOrException();
+        BangGame g = BangMod.game;
+        if (g == null || !g.isInLobby()) { ctx.getSource().sendFailure(Component.literal("§c먼저 /bang create 로 방을 만드세요.")); return 0; }
+        if (!g.host.equals(sp.getUUID())) { ctx.getSource().sendFailure(Component.literal("§c방장만 봇을 추가할 수 있습니다.")); return 0; }
+        if (!g.addBot("봇" + g.size())) { ctx.getSource().sendFailure(Component.literal("§c정원이 찼습니다(최대 7명).")); return 0; }
+        announce(ctx.getSource().getServer(), "§6[BANG] §7테스트 봇 추가됨 §7(" + g.size() + "명)");
         return 1;
     }
 

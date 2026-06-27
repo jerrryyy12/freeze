@@ -16,6 +16,7 @@ public class BangPlayer {
     public int hp;
     public boolean alive = true;
     public int seat = -1;
+    public boolean isBot = false;
 
     public final List<Card> hand = new ArrayList<>();
     public final List<Card> equipment = new ArrayList<>();
