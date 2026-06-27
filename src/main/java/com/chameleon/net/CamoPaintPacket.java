@@ -17,19 +17,11 @@ public class CamoPaintPacket {
     }
 
     public static void encode(CamoPaintPacket m, FriendlyByteBuf buf) {
-        if (m.pixels == null) {
-            buf.writeBoolean(false);
-        } else {
-            buf.writeBoolean(true);
-            for (int i = 0; i < CamoSyncPacket.LEN; i++) buf.writeInt(m.pixels[i]);
-        }
+        CamoSyncPacket.writePixels(buf, m.pixels);
     }
 
     public static CamoPaintPacket decode(FriendlyByteBuf buf) {
-        if (!buf.readBoolean()) return new CamoPaintPacket(null);
-        int[] px = new int[CamoSyncPacket.LEN];
-        for (int i = 0; i < CamoSyncPacket.LEN; i++) px[i] = buf.readInt();
-        return new CamoPaintPacket(px);
+        return new CamoPaintPacket(CamoSyncPacket.readPixels(buf));
     }
 
     public static void handle(CamoPaintPacket m, CustomPayloadEvent.Context ctx) {

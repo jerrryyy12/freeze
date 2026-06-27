@@ -27,6 +27,7 @@ public class CamoClient {
             remove(id);
             return;
         }
+        if (px.length != SIZE * SIZE) return; // 크기 안 맞으면 무시(버전 차이 방어)
         PIXELS.put(id, px);
 
         DynamicTexture dt = DYN.get(id);

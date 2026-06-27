@@ -24,29 +24,8 @@ description='''지정한 사각형 영역 밖으로 나가면 즉시 사망하�
     side="BOTH"
 
 [[mods]]
-modId="bang"
-version="0.6.0"
-displayName="Bang"
-authors="freeze"
-description='''서부극 카드 게임 BANG!을 마인크래프트에서 (보드게임 방식)'''
-
-[[dependencies.bang]]
-    modId="forge"
-    mandatory=true
-    versionRange="[52,)"
-    ordering="NONE"
-    side="BOTH"
-
-[[dependencies.bang]]
-    modId="minecraft"
-    mandatory=true
-    versionRange="[1.21.1,1.22)"
-    ordering="NONE"
-    side="BOTH"
-
-[[mods]]
 modId="chameleon"
-version="0.7.0"
+version="0.8.0"
 displayName="Chameleon"
 authors="freeze"
 description='''위장 숨바꼭질 - 몸을 환경 색으로 칠해 숨는 게임'''
