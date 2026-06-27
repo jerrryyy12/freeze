@@ -24,8 +24,8 @@ public class CamoEditState {
     public static final int SCALE = SIZE / 64; // 64-단위 좌표 → 실제 텍스처 배율
 
     /** 숨는 사람 축소 배율(서버 CamoGame.HIDER_SCALE와 동일). 블록픽셀 대응 계산용. */
-    public static final double HIDER_SCALE = 0.3;
-    /** 줄어든 상태에서 "마크 블록 픽셀 1개"에 해당하는 텍셀 수. (원래크기 SCALE텍셀=블록1픽셀, 0.3배면 ÷0.3) */
+    public static final double HIDER_SCALE = 0.5;
+    /** 줄어든 상태에서 "마크 블록 픽셀 1개"에 해당하는 텍셀 수. (원래크기 SCALE텍셀=블록1픽셀, 0.5배면 ÷0.5=4) */
     public static final double TEXELS_PER_BLOCKPIXEL = SCALE / HIDER_SCALE;
 
     public static int[] pixels = null;
@@ -34,7 +34,6 @@ public class CamoEditState {
     public static boolean blockPixelMode = false; // true면 블록픽셀 단위로 칠함
     public static int blockBrush = 1;       // 블록픽셀 모드 브러시 크기(블록픽셀 단위)
     public static int view = 0; // 0앞 1뒤 2좌 3우 4위 5아래
-    public static boolean eyedropperArmed = false;
     public static boolean camoOn = false; // 현재 위장 표시 중인지(원래 스킨 토글용)
     public static boolean gameActive = false; // 게임 진행 중(H 토글 잠금)
     public static int gameSecondsLeft = 0;    // HUD 타이머용 남은 시간

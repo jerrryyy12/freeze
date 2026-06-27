@@ -84,10 +84,15 @@ public final class Freecam {
     /** Camera.setup 도중(ComputeCameraAngles 이벤트)에 호출: 카메라 위치를 freePos로 덮어쓴다. */
     public static void applyCameraPosition(Camera cam) {
         if (!active) return;
+        setCameraPosition(cam, pos);
+    }
+
+    /** 카메라 위치를 임의 좌표로 강제(리플렉션). 스포이드 모드 등에서도 재사용. */
+    public static void setCameraPosition(Camera cam, Vec3 p) {
         Field f = posField();
         if (f == null) return;
         try {
-            f.set(cam, pos);
+            f.set(cam, p);
         } catch (IllegalAccessException ignored) {
         }
     }

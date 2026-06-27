@@ -275,11 +275,8 @@ public class PaintScreen extends Screen {
     }
 
     private void armEyedropper() {
-        CamoEditState.eyedropperArmed = true;
-        Minecraft mc = Minecraft.getInstance();
-        if (mc.player != null)
-            mc.player.displayClientMessage(Component.literal("§e조준점을 대고 [휠클릭]으로 그 색 추출  (G = 취소)"), true);
-        this.onClose();
+        sync(); // 작업 내용 저장 후 스포이드 모드로
+        EyedropperScreen.open(this);
     }
 
     private void doUndo() {

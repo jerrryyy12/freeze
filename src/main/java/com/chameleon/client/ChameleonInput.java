@@ -33,9 +33,6 @@ import java.nio.ByteBuffer;
 @Mod.EventBusSubscriber(modid = ChameleonMod.MOD_ID, value = Dist.CLIENT)
 public class ChameleonInput {
 
-    private static boolean sampleRequested = false; // 휠클릭됨 → 다음 렌더에서 픽셀 추출
-    private static boolean pendingReopen = false;    // 추출 후 색칠 화면 다시 열기
-
     // 벽타기 설정 (상시 가능)
     private static final double CLIMB_UP = 0.15;     // 점프키로 벽 오르는 속도(이전 0.25의 60%)
 
@@ -50,24 +47,6 @@ public class ChameleonInput {
         while (ChameleonClient.FREECAM_ON.consumeClick()) Freecam.enable();
         while (ChameleonClient.FREECAM_OFF.consumeClick()) Freecam.disable();
         Freecam.tick(mc);
-
-        if (pendingReopen && mc.screen == null) {
-            pendingReopen = false;
-            PaintScreen.open();
-            return;
-        }
-
-        if (CamoEditState.eyedropperArmed) {
-            if (mc.screen == null) {
-                if (mc.options.keyPickItem.consumeClick()) {
-                    sampleRequested = true; // 실제 추출은 RenderGuiEvent.Pre(월드만 그려진 시점)에서
-                } else if (ChameleonClient.PAINT_KEY.consumeClick()) {
-                    CamoEditState.eyedropperArmed = false;
-                    PaintScreen.open();
-                }
-            }
-            return;
-        }
 
         while (ChameleonClient.PAINT_KEY.consumeClick()) {
             if (mc.screen == null) PaintScreen.open();
@@ -101,19 +80,13 @@ public class ChameleonInput {
         p.resetFallDistance();
     }
 
-    /** 월드 렌더 후반(파티클까지) = 크로스헤어 그려지기 전. 여기서 조준점 픽셀을 읽는다. */
+    /** 월드 렌더 후반(파티클까지) = GUI 그려지기 전. 스포이드 모드면 커서 밑 픽셀 색을 읽어 갱신. */
     @SubscribeEvent
     public static void onRenderLevel(RenderLevelStageEvent event) {
-        if (!sampleRequested) return;
         if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_PARTICLES) return;
-        sampleRequested = false;
-        int color = readCenterPixel();
-        CamoEditState.addColor(color);
-        CamoEditState.eyedropperArmed = false;
-        pendingReopen = true;
-        Minecraft mc = Minecraft.getInstance();
-        if (mc.player != null)
-            mc.player.displayClientMessage(Component.literal("§a색 추출: #" + String.format("%06X", color & 0xFFFFFF)), true);
+        if (Minecraft.getInstance().screen instanceof EyedropperScreen es) {
+            es.updateHover(readPixelAt(es.cursorX(), es.cursorY()));
+        }
     }
 
     /** 게임 중에는 머리 위 닉네임을 숨긴다(숨는 사람 위치 노출 방지). */
@@ -124,10 +97,11 @@ public class ChameleonInput {
         }
     }
 
-    /** 카메라 셋업 중: 자유 시점이 켜져 있으면 카메라 위치를 자유 좌표로 덮어쓴다. */
+    /** 카메라 셋업 중: 자유 시점/스포이드 모드면 카메라 위치·각도를 덮어쓴다. */
     @SubscribeEvent
     public static void onCameraSetup(ViewportEvent.ComputeCameraAngles event) {
         Freecam.applyCameraPosition(event.getCamera());
+        EyedropperScreen.applyCamera(event);
     }
 
     /** 자유 시점 중에는 캐릭터가 움직이지 않도록 이동 입력을 막는다(이동키는 카메라용). */
@@ -142,13 +116,20 @@ public class ChameleonInput {
         in.shiftKeyDown = false;
     }
 
-    private static int readCenterPixel() {
+    /** GUI 좌표 (guiX,guiY)에 해당하는 프레임버퍼 픽셀(월드) 색을 읽는다. */
+    private static int readPixelAt(double guiX, double guiY) {
         Minecraft mc = Minecraft.getInstance();
         RenderTarget rt = mc.getMainRenderTarget();
-        int cx = rt.width / 2, cy = rt.height / 2;
+        double gw = mc.getWindow().getGuiScaledWidth();
+        double gh = mc.getWindow().getGuiScaledHeight();
+        int px = (int) Math.round(guiX / gw * rt.width);
+        int py = (int) Math.round(guiY / gh * rt.height);
+        px = Math.max(0, Math.min(rt.width - 1, px));
+        py = Math.max(0, Math.min(rt.height - 1, py));
+        int fy = rt.height - 1 - py; // glReadPixels 원점은 좌하단
         ByteBuffer pb = BufferUtils.createByteBuffer(16);
         GlStateManager._glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, rt.frameBufferId);
-        GL11.glReadPixels(cx, cy, 1, 1, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, pb);
+        GL11.glReadPixels(px, fy, 1, 1, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, pb);
         rt.bindWrite(false); // 뷰포트는 건드리지 않고 프레임버퍼 바인딩만 복구
         int r = pb.get(0) & 0xFF, g = pb.get(1) & 0xFF, b = pb.get(2) & 0xFF;
         return 0xFF000000 | (r << 16) | (g << 8) | b;
