@@ -43,6 +43,11 @@ public class Paint3DScreen extends Screen {
     private int palX, presetY;
     private boolean dirty = false;
 
+    // 컬러 피커(HSV) — 2D와 동일
+    private static final int SV = 76, HUEW = 10;
+    private float h = 0, sat = 1, val = 1;
+    private int svX, svY, hueX;
+
     private EditBox hexField;
     private boolean updatingHex = false;
 
@@ -69,22 +74,30 @@ public class Paint3DScreen extends Screen {
         viewX0 = 8; viewY0 = 26; viewX1 = this.width - paletteW - 8; viewY1 = this.height - 32;
         cx = (viewX0 + viewX1) / 2; cy = (viewY0 + viewY1) / 2;
         palX = this.width - paletteW + 8;
-        presetY = 92;
         scale = Math.max(3f, (viewY1 - viewY0) / 46f);
 
+        // 컬러 피커(HSV) 위치 + 그 아래 선택색/HEX/팔레트
+        svX = palX; svY = 26; hueX = palX + SV + 6;
+        presetY = svY + SV + 60;
+        selectColor(CamoEditState.selectedColor);
+
         // HEX 입력
-        hexField = new EditBox(this.font, palX, 64, 92, 16, Component.literal("HEX"));
+        hexField = new EditBox(this.font, palX, svY + SV + 24, 92, 16, Component.literal("HEX"));
         hexField.setMaxLength(7);
         hexField.setResponder(txt -> {
             if (updatingHex) return;
             Integer c = parseHex(txt);
-            if (c != null) CamoEditState.selectedColor = 0xFF000000 | c;
+            if (c != null) {
+                CamoEditState.selectedColor = 0xFF000000 | c;
+                float[] f = PaintScreen.rgbToHsv(c);
+                h = f[0]; sat = f[1]; val = f[2];
+            }
         });
         addRenderableWidget(hexField);
         updateHexField();
 
         int by = this.height - 26;
-        int bw = Math.min(90, (this.width - 20) / 6);
+        int bw = Math.min(80, (this.width - 20) / 7);
         int x = 10;
         addRenderableWidget(Button.builder(Component.literal("2D로"), b -> PaintScreen.open()).bounds(x, by, bw, 20).build());
         x += bw + 2;
@@ -97,7 +110,55 @@ public class Paint3DScreen extends Screen {
         x += bw + 2;
         addRenderableWidget(Button.builder(Component.literal("되돌리기"), b -> doUndo()).bounds(x, by, bw, 20).build());
         x += bw + 2;
+        addRenderableWidget(Button.builder(Component.literal("채우기"), b -> {
+            CamoEditState.pushUndo();
+            CamoEditState.fillAll(CamoEditState.selectedColor);
+            dirty = true;
+            sync();
+        }).bounds(x, by, bw, 20).build());
+        x += bw + 2;
         addRenderableWidget(Button.builder(Component.literal("완료"), b -> this.onClose()).bounds(x, by, bw, 20).build());
+    }
+
+    private void selectColor(int argb) {
+        CamoEditState.selectedColor = 0xFF000000 | (argb & 0xFFFFFF);
+        float[] f = PaintScreen.rgbToHsv(argb);
+        h = f[0]; sat = f[1]; val = f[2];
+        updateHexField();
+    }
+
+    private boolean pickerAt(double mx, double my) {
+        if (mx >= svX && mx < svX + SV && my >= svY && my < svY + SV) {
+            sat = clamp01((mx - svX) / SV);
+            val = clamp01(1 - (my - svY) / SV);
+            CamoEditState.selectedColor = PaintScreen.hsv(h, sat, val);
+            updateHexField();
+            return true;
+        }
+        if (mx >= hueX && mx < hueX + HUEW && my >= svY && my < svY + SV) {
+            h = clamp01((my - svY) / SV);
+            CamoEditState.selectedColor = PaintScreen.hsv(h, sat, val);
+            updateHexField();
+            return true;
+        }
+        return false;
+    }
+
+    private void renderPicker(GuiGraphics g) {
+        for (int yy = 0; yy < SV; yy += 4)
+            for (int xx = 0; xx < SV; xx += 4)
+                g.fill(svX + xx, svY + yy, svX + xx + 4, svY + yy + 4, PaintScreen.hsv(h, xx / (float) SV, 1f - yy / (float) SV));
+        int mxp = svX + (int) (sat * SV), myp = svY + (int) ((1 - val) * SV);
+        g.fill(mxp - 2, myp - 2, mxp + 3, myp + 3, 0xFFFFFFFF);
+        g.fill(mxp - 1, myp - 1, mxp + 2, myp + 2, 0xFF000000);
+        for (int yy = 0; yy < SV; yy += 2)
+            g.fill(hueX, svY + yy, hueX + HUEW, svY + yy + 2, PaintScreen.hsv(yy / (float) SV, 1f, 1f));
+        int hy = svY + (int) (h * SV);
+        g.fill(hueX - 1, hy - 1, hueX + HUEW + 1, hy + 1, 0xFFFFFFFF);
+    }
+
+    private static float clamp01(double x) {
+        return (float) Math.max(0, Math.min(1, x));
     }
 
     /** 모드에 따라 자유 브러시 또는 블록픽셀 브러시 크기를 조절. */
@@ -177,6 +238,7 @@ public class Paint3DScreen extends Screen {
         g.pose().popPose();
         g.disableScissor();
 
+        renderPicker(g);
         renderColorColumn(g);
 
         // 브러시 커서 (자유=원, 블록픽셀=사각형)
@@ -244,7 +306,7 @@ public class Paint3DScreen extends Screen {
     // ---- 색 컬럼 ----
 
     private void renderColorColumn(GuiGraphics g) {
-        int prevY = 40;
+        int prevY = svY + SV + 6;
         g.fill(palX, prevY, palX + 22, prevY + 14, CamoEditState.selectedColor);
         g.drawString(this.font, "선택색", palX + 28, prevY + 3, 0xFFFFFFFF);
 
@@ -259,7 +321,7 @@ public class Paint3DScreen extends Screen {
         String binfo = CamoEditState.blockPixelMode
                 ? "§a블록픽셀 " + CamoEditState.blockBrush + "칸 (1칸≈" + String.format("%.1f", CamoEditState.TEXELS_PER_BLOCKPIXEL) + "px)"
                 : "브러시 " + CamoEditState.brush + "칸";
-        g.drawString(this.font, binfo + "  ·  정밀색은 2D", palX, this.height - 42, 0xFFAAAAAA);
+        g.drawString(this.font, binfo, palX, this.height - 42, 0xFFAAAAAA);
     }
 
     private boolean inView(double mx, double my) {
@@ -271,11 +333,11 @@ public class Paint3DScreen extends Screen {
     @Override
     public boolean mouseClicked(double mx, double my, int button) {
         if (super.mouseClicked(mx, my, button)) return true;
+        if (button == 0 && pickerAt(mx, my)) return true;
         for (int i = 0; i < CamoEditState.palette.size(); i++) {
             int x = palX + (i % 8) * 16, y = presetY + (i / 8) * 16;
             if (mx >= x && mx < x + 14 && my >= y && my < y + 14) {
-                CamoEditState.selectedColor = CamoEditState.palette.get(i);
-                updateHexField();
+                selectColor(CamoEditState.palette.get(i));
                 return true;
             }
         }
@@ -290,6 +352,7 @@ public class Paint3DScreen extends Screen {
     public boolean mouseDragged(double mx, double my, int button, double dx, double dy) {
         if (button == 1) { yaw += (float) dx * 0.01f; pitch += (float) dy * 0.01f; return true; }
         if (button == 2) { panX += (int) dx; panY += (int) dy; return true; } // 휠클릭 = 이동
+        if (button == 0 && pickerAt(mx, my)) return true; // 컬러 피커 드래그
         if (button == 0 && inView(mx, my) && paintAt(mx, my)) return true;
         return super.mouseDragged(mx, my, button, dx, dy);
     }

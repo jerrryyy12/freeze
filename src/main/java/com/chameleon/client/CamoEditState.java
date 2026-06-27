@@ -97,6 +97,13 @@ public class CamoEditState {
             fill(r[0] * SCALE, r[1] * SCALE, r[2] * SCALE, r[3] * SCALE, 0xFFB0B0B0);
     }
 
+    /** 몸 전체를 한 색으로 칠한다(보고 있는/선택한 블록색으로 한번에 위장). */
+    public static void fillAll(int argb) {
+        if (pixels == null) ensureInit();
+        for (int[] r : BASE_RECTS)
+            fill(r[0] * SCALE, r[1] * SCALE, r[2] * SCALE, r[3] * SCALE, argb);
+    }
+
     static void fill(int u, int v, int w, int h, int argb) {
         for (int y = v; y < v + h; y++)
             for (int x = u; x < u + w; x++)

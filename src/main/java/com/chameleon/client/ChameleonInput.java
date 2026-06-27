@@ -112,7 +112,7 @@ public class ChameleonInput {
     /** 카메라 셋업 중: 자유 시점/스포이드 모드면 카메라 위치·각도를 덮어쓴다. */
     @SubscribeEvent
     public static void onCameraSetup(ViewportEvent.ComputeCameraAngles event) {
-        Freecam.applyCameraPosition(event.getCamera());
+        Freecam.applyCamera(event);
         EyedropperScreen.applyCamera(event);
     }
 

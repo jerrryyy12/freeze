@@ -31,9 +31,16 @@ public class CamoCommands {
                 .then(Commands.literal("paint").executes(ctx -> paint(ctx.getSource())))
                 .then(Commands.literal("sample").executes(ctx -> sample(ctx.getSource())))
                 .then(Commands.literal("clear").executes(ctx -> clear(ctx.getSource())))
+                .then(Commands.literal("set").requires(s -> s.hasPermission(2))
+                        .then(Commands.literal("hide").then(Commands.argument("seconds", IntegerArgumentType.integer(0, 3600))
+                                .executes(ctx -> setTime(ctx.getSource(), "hide", IntegerArgumentType.getInteger(ctx, "seconds")))))
+                        .then(Commands.literal("reveal").then(Commands.argument("seconds", IntegerArgumentType.integer(0, 3600))
+                                .executes(ctx -> setTime(ctx.getSource(), "reveal", IntegerArgumentType.getInteger(ctx, "seconds")))))
+                        .then(Commands.literal("seek").then(Commands.argument("seconds", IntegerArgumentType.integer(1, 3600))
+                                .executes(ctx -> setTime(ctx.getSource(), "seek", IntegerArgumentType.getInteger(ctx, "seconds"))))))
                 .then(Commands.literal("game")
                         .then(Commands.literal("start").requires(s -> s.hasPermission(2))
-                                .executes(ctx -> gameStart(ctx.getSource(), 300))
+                                .executes(ctx -> gameStart(ctx.getSource(), CamoGame.getDefaultSeekSeconds()))
                                 .then(Commands.argument("seconds", IntegerArgumentType.integer(10, 3600))
                                         .executes(ctx -> gameStart(ctx.getSource(), IntegerArgumentType.getInteger(ctx, "seconds")))))
                         .then(Commands.literal("stop").requires(s -> s.hasPermission(2))
@@ -70,6 +77,22 @@ public class CamoCommands {
         } else {
             src.sendSuccess(() -> Component.literal("게임 진행 중 · 남은 시간 " + CamoGame.secondsLeft() + "초"), false);
         }
+        src.sendSuccess(() -> Component.literal("§7설정: 숨기 " + CamoGame.getHideSeconds()
+                + "초 · 찾기 " + CamoGame.getDefaultSeekSeconds() + "초 · 공개 " + CamoGame.getRevealSeconds() + "초"), false);
+        return 1;
+    }
+
+    /** /camo set hide|reveal|seek <초> */
+    private static int setTime(CommandSourceStack src, String which, int seconds) {
+        switch (which) {
+            case "hide" -> CamoGame.setHideSeconds(seconds);
+            case "reveal" -> CamoGame.setRevealSeconds(seconds);
+            case "seek" -> CamoGame.setDefaultSeekSeconds(seconds);
+            default -> { return 0; }
+        }
+        src.sendSuccess(() -> Component.literal("§a시간 설정 — 숨기 " + CamoGame.getHideSeconds()
+                + "초 · 찾기 " + CamoGame.getDefaultSeekSeconds() + "초 · 공개 " + CamoGame.getRevealSeconds()
+                + "초 (다음 게임부터 적용)"), true);
         return 1;
     }
 

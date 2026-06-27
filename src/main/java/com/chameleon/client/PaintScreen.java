@@ -115,7 +115,7 @@ public class PaintScreen extends Screen {
 
         // 컨트롤 버튼 (하단)
         int by = this.height - 26;
-        int bw = Math.min(76, (this.width - 20) / 7);
+        int bw = Math.min(66, (this.width - 18) / 8);
         int x = 10;
         addRenderableWidget(Button.builder(Component.literal("크기 -"), b -> brushDelta(-1)).bounds(x, by, bw, 20).build());
         x += bw + 2;
@@ -128,7 +128,14 @@ public class PaintScreen extends Screen {
         x += bw + 2;
         addRenderableWidget(Button.builder(Component.literal("스포이드"), b -> armEyedropper()).bounds(x, by, bw, 20).build());
         x += bw + 2;
-        addRenderableWidget(Button.builder(Component.literal("전체 지우기"), b -> {
+        addRenderableWidget(Button.builder(Component.literal("채우기"), b -> {
+            CamoEditState.pushUndo();
+            CamoEditState.fillAll(CamoEditState.selectedColor); // 선택색으로 몸 전체
+            dirty = true;
+            sync();
+        }).bounds(x, by, bw, 20).build());
+        x += bw + 2;
+        addRenderableWidget(Button.builder(Component.literal("지우기"), b -> {
             CamoEditState.pushUndo();
             CamoEditState.resetCanvas();
             dirty = true;

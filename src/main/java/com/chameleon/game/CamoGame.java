@@ -52,9 +52,18 @@ public class CamoGame {
     private static final double NORMAL_SPEED = 0.1;
     private static final String SEEKER_TEAM = "camo_seeker";
 
-    private static final int HIDE_SECONDS = 180;   // 숨는 시간 3분
-    private static final int REVEAL_SECONDS = 30;   // 정답 공개 30초
+    // 커스텀 설정(명령어로 변경) — 숨기/공개/기본 찾기 시간(초)
+    private static int hideSeconds = 180;
+    private static int revealSeconds = 30;
+    private static int defaultSeekSeconds = 300;
     private static final int GLOW_FOREVER = 1_000_000; // 게임 내내 발광
+
+    public static void setHideSeconds(int s) { hideSeconds = Math.max(0, s); }
+    public static void setRevealSeconds(int s) { revealSeconds = Math.max(0, s); }
+    public static void setDefaultSeekSeconds(int s) { defaultSeekSeconds = Math.max(1, s); }
+    public static int getHideSeconds() { return hideSeconds; }
+    public static int getRevealSeconds() { return revealSeconds; }
+    public static int getDefaultSeekSeconds() { return defaultSeekSeconds; }
 
     // ---- 샷건 설정 ----
     private static final int SHOTGUN_PELLETS = 12;
@@ -94,9 +103,10 @@ public class CamoGame {
         }
         hiderCount = hiders;
         phase = Phase.HIDE;
-        phaseTicks = HIDE_SECONDS * 20;
-        ChameleonNet.broadcastGameState(phaseId(), HIDE_SECONDS);
-        announce(server, Component.literal("§b숨는 시간!"), Component.literal("3분 안에 숨으세요"));
+        phaseTicks = hideSeconds * 20;
+        ChameleonNet.broadcastGameState(phaseId(), hideSeconds);
+        announce(server, Component.literal("§b숨는 시간!"),
+                Component.literal(hideSeconds + "초 안에 숨으세요"));
         return new int[]{hiders, seekers};
     }
 
@@ -163,13 +173,13 @@ public class CamoGame {
             if (roles.get(p.getUUID()) == Role.HIDER && !p.isSpectator()) {
                 setAttr(p, Attributes.MOVEMENT_SPEED, 0.0); // 그 자리에 고정(정답)
                 p.setDeltaMovement(0, 0, 0);
-                p.addEffect(new MobEffectInstance(MobEffects.GLOWING, REVEAL_SECONDS * 20, 0, false, false));
+                p.addEffect(new MobEffectInstance(MobEffects.GLOWING, revealSeconds * 20, 0, false, false));
                 p.setInvulnerable(true);
             }
         }
         phase = Phase.REVEAL;
-        phaseTicks = REVEAL_SECONDS * 20;
-        ChameleonNet.broadcastGameState(phaseId(), REVEAL_SECONDS);
+        phaseTicks = revealSeconds * 20;
+        ChameleonNet.broadcastGameState(phaseId(), revealSeconds);
     }
 
     /**
@@ -271,7 +281,7 @@ public class CamoGame {
     /** 숨는 시간 동안 술래를 묶고 실명시킨다. */
     private static void freezeSeekerForHide(ServerPlayer p) {
         setAttr(p, Attributes.MOVEMENT_SPEED, 0.0);
-        p.addEffect(new MobEffectInstance(MobEffects.BLINDNESS, HIDE_SECONDS * 20 + 20, 0, false, false, true));
+        p.addEffect(new MobEffectInstance(MobEffects.BLINDNESS, hideSeconds * 20 + 20, 0, false, false, true));
     }
 
     /** 숨는 시간 종료 → 술래 풀어줌. */
