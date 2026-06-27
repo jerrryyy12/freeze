@@ -15,11 +15,11 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.MapColor;
 
 /**
- * 위장 레이어. 플레이어가 웅크리면(Shift) 발밑 블록의 지도 색으로 몸 전체를 단색으로 칠한다.
+ * 위장 레이어. 플레이어가 웅크리면(Shift) 몸 전체를 위장으로 덮어 그린다.
  *
- * <p>플레이어 모델 전체를 흰색 텍스처에 단색 틴트로 다시 그려서 원래 스킨을 덮는다.
- * 웅크림/위치는 마인크래프트가 모든 클라이언트로 동기화하므로, 별도 네트워킹 없이도
- * 같은 색이 모두에게 동일하게 보인다. (1단계 렌더링 검증용)</p>
+ * <p>칠한 위장 텍스처가 동기화돼 있으면 그 텍스처로 몸을 그리고(2단계),
+ * 없으면 발밑 블록 지도색 단색으로 칠한다(1단계 폴백). 원래 스킨 위에 한 번 더
+ * 그려서 덮는 방식이라 모든 클라이언트에 동일하게 보인다.</p>
  */
 public class CamoLayer extends RenderLayer<AbstractClientPlayer, PlayerModel<AbstractClientPlayer>> {
 
@@ -36,6 +36,15 @@ public class CamoLayer extends RenderLayer<AbstractClientPlayer, PlayerModel<Abs
                        float partialTicks, float ageInTicks, float netHeadYaw, float headPitch) {
         if (!player.isCrouching()) return;
 
+        // 2단계: 칠한 위장 텍스처가 있으면 그걸로 몸 전체를 그린다(틴트 없음).
+        ResourceLocation camo = CamoClient.texture(player.getUUID());
+        if (camo != null) {
+            VertexConsumer vcTex = buffer.getBuffer(RenderType.entityCutoutNoCull(camo));
+            this.getParentModel().renderToBuffer(poseStack, vcTex, packedLight, OverlayTexture.NO_OVERLAY, 0xFFFFFFFF);
+            return;
+        }
+
+        // 1단계 폴백: 발밑 블록 지도색 단색.
         BlockPos below = player.blockPosition().below();
         BlockState state = player.level().getBlockState(below);
         MapColor mapColor = state.getMapColor(player.level(), below);

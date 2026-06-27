@@ -46,7 +46,7 @@ description='''서부극 카드 게임 BANG!을 마인크래프트에서 (보드
 
 [[mods]]
 modId="chameleon"
-version="0.1.0"
+version="0.2.0"
 displayName="Chameleon"
 authors="freeze"
 description='''위장 숨바꼭질 - 몸을 환경 색으로 칠해 숨는 게임'''
