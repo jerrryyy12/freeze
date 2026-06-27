@@ -98,7 +98,22 @@ public class CamoGame {
             stop(server);
             return;
         }
-        if (ticksLeft % 20 == 0) ChameleonNet.broadcastGameState(true, secondsLeft());
+        if (ticksLeft % 20 == 0) showTimer(server);
+    }
+
+    /** 매초: 액션바에 남은 시간, 마지막 10초는 타이틀로 큰 카운트다운. */
+    private static void showTimer(MinecraftServer server) {
+        int s = secondsLeft();
+        Component bar = Component.literal(String.format("§e남은 시간 %d:%02d", s / 60, s % 60));
+        boolean count = s <= 10 && s >= 1;
+        for (ServerPlayer p : server.getPlayerList().getPlayers()) {
+            p.displayClientMessage(bar, true); // 액션바
+            if (count) {
+                p.connection.send(new ClientboundSetTitlesAnimationPacket(0, 24, 4));
+                p.connection.send(new ClientboundSetTitleTextPacket(
+                        Component.literal((s <= 3 ? "§c§l" : "§f§l") + s)));
+            }
+        }
     }
 
     /** 모든 플레이어에게 큰 타이틀 표시(게임 결과). */
