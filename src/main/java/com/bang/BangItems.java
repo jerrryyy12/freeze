@@ -66,4 +66,12 @@ public class BangItems {
         RegistryObject<Item> ro = CHARS.get(ch);
         return ro == null ? null : ro.get();
     }
+
+    /** 해당 아이템이 손패 카드 아이템인지 */
+    public static boolean isCard(Item item) {
+        for (RegistryObject<Item> ro : CARDS.values()) {
+            if (ro.get() == item) return true;
+        }
+        return false;
+    }
 }

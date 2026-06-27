@@ -2,6 +2,7 @@ package com.bang;
 
 import com.bang.game.BangGame;
 import com.bang.game.BangHeads;
+import com.bang.game.BangInventory;
 import com.bang.game.BangPlayer;
 import com.bang.game.BangTable;
 import com.bang.game.Card;
@@ -111,6 +112,7 @@ public class BangCommands {
         announce(ctx.getSource().getServer(), "§6[BANG] 게임이 종료되었습니다.");
         BangTable.clear(ctx.getSource().getServer());
         BangHeads.clear();
+        BangInventory.endGame(ctx.getSource().getServer(), g);
         BangMod.game = null;
         return 1;
     }

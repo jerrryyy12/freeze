@@ -3,6 +3,7 @@ package com.bang.game;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.level.GameType;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -126,6 +127,7 @@ public class BangGame {
             msg(server, p.id, "§7캐릭터: §f" + p.character.kr + " §8(체력 " + p.maxHp + ") — " + p.character.ability);
         }
         BangHeads.rebuild(server, this);
+        BangInventory.beginGame(server, this);
         beginTurn(server);
         return true;
     }
@@ -215,6 +217,7 @@ public class BangGame {
         }
         broadcast(server, "§b▶ " + p.name + " 님의 턴 §7(체력 " + p.hp + "/" + p.maxHp + ", 손패 " + p.hand.size() + ")");
         BangTable.render(server, this);
+        BangInventory.syncAll(server, this);
         if (p.isBot) {
             // 패시브 봇: 사람이 살아있으면 바로 턴 종료(아니면 무한 재귀 방지로 멈춤)
             if (anyHumanAlive()) endTurn(server, p);
@@ -357,6 +360,7 @@ public class BangGame {
         }
         checkWin(server);
         BangTable.render(server, this);
+        BangInventory.syncAll(server, this);
     }
 
     private void doBang(MinecraftServer server, BangPlayer actor, int index0, BangPlayer target) {
@@ -425,6 +429,10 @@ public class BangGame {
 
     private void die(MinecraftServer server, BangPlayer target, BangPlayer killer) {
         target.alive = false;
+        if (!target.isBot) {
+            ServerPlayer sp = server.getPlayerList().getPlayer(target.id);
+            if (sp != null) sp.setGameMode(GameType.SPECTATOR);
+        }
         broadcast(server, "§4☠ " + target.name + " 탈락! §7역할: " + target.role.kr);
         for (Card c : target.hand) deck.discard(c);
         for (Card c : target.equipment) deck.discard(c);
@@ -471,6 +479,7 @@ public class BangGame {
     private void finish(MinecraftServer server, String result) {
         state = State.ENDED;
         BangHeads.clear();
+        BangInventory.endGame(server, this);
         broadcast(server, "§6===== 게임 종료 — " + result + " §6=====");
         for (BangPlayer p : order) broadcast(server, "§7" + p.name + ": " + p.role.kr + (p.alive ? "" : " §8(탈락)"));
     }
