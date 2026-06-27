@@ -1,5 +1,6 @@
 package com.chameleon.client;
 
+import com.chameleon.net.CamoSyncPacket;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.Level;
@@ -16,8 +17,9 @@ import java.util.Set;
  * 픽셀/선택색/브러시/팔레트를 정적으로 보관한다.
  */
 public class CamoEditState {
-    public static final int SIZE = 64;
-    public static final int LEN = SIZE * SIZE;
+    public static final int SIZE = CamoSyncPacket.SIZE;
+    public static final int LEN = CamoSyncPacket.LEN;
+    public static final int SCALE = SIZE / 64; // 64-단위 좌표 → 실제 텍스처 배율
 
     public static int[] pixels = null;
     public static int selectedColor = 0xFFFF0000;
@@ -52,7 +54,9 @@ public class CamoEditState {
 
     public static void resetCanvas() {
         pixels = new int[LEN];
-        for (int[] r : BASE_RECTS) fill(r[0], r[1], r[2], r[3], 0xFFB0B0B0);
+        // BASE_RECTS는 64-단위 → SCALE 배율로 채움
+        for (int[] r : BASE_RECTS)
+            fill(r[0] * SCALE, r[1] * SCALE, r[2] * SCALE, r[3] * SCALE, 0xFFB0B0B0);
     }
 
     static void fill(int u, int v, int w, int h, int argb) {

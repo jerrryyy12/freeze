@@ -13,7 +13,8 @@ import java.util.UUID;
  * pixels == null 이면 위장 해제(텍스처 제거).
  */
 public class CamoSyncPacket {
-    public static final int SIZE = 64;
+    /** 위장 텍스처 한 변 크기. 64=기본 스킨 해상도, 128=2배(더 정밀한 색칠). */
+    public static final int SIZE = 128;
     public static final int LEN = SIZE * SIZE;
 
     public final UUID id;

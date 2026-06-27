@@ -1,5 +1,6 @@
 package com.chameleon.client;
 
+import com.chameleon.net.CamoSyncPacket;
 import com.mojang.blaze3d.platform.NativeImage;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.DynamicTexture;
@@ -14,7 +15,7 @@ import java.util.UUID;
  * 서버에서 받은 ARGB 픽셀 배열을 NativeImage(ABGR)로 변환해 업로드한다.
  */
 public class CamoClient {
-    private static final int SIZE = 64;
+    private static final int SIZE = CamoSyncPacket.SIZE;
 
     private static final Map<UUID, int[]> PIXELS = new HashMap<>();
     private static final Map<UUID, DynamicTexture> DYN = new HashMap<>();
