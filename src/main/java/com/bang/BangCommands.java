@@ -13,6 +13,9 @@ import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.SimpleContainer;
+import net.minecraft.world.SimpleMenuProvider;
+import net.minecraft.world.item.ItemStack;
 
 public class BangCommands {
 
@@ -25,6 +28,7 @@ public class BangCommands {
                 .then(Commands.literal("stop").executes(BangCommands::stop))
                 .then(Commands.literal("status").executes(BangCommands::status))
                 .then(Commands.literal("hand").executes(BangCommands::hand))
+                .then(Commands.literal("list").executes(BangCommands::list))
                 .then(Commands.literal("end").executes(BangCommands::end))
                 .then(Commands.literal("play")
                         .then(Commands.argument("index", IntegerArgumentType.integer(1))
@@ -122,6 +126,23 @@ public class BangCommands {
     }
 
     private static int hand(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
+        ServerPlayer sp = ctx.getSource().getPlayerOrException();
+        BangGame g = BangMod.game;
+        if (g == null || !g.isPlaying()) { ctx.getSource().sendFailure(Component.literal("§c진행 중인 게임이 없습니다.")); return 0; }
+        BangPlayer me = g.get(sp.getUUID());
+        if (me == null) { ctx.getSource().sendFailure(Component.literal("§c당신은 이 게임에 없습니다.")); return 0; }
+        // 손패 GUI 열기
+        sp.openMenu(new SimpleMenuProvider((id, inv, player) -> {
+            SimpleContainer c = new SimpleContainer(BangHandMenu.CARD_SLOTS);
+            for (int i = 0; i < me.hand.size() && i < BangHandMenu.CARD_SLOTS; i++) {
+                c.setItem(i, new ItemStack(BangItems.itemFor(me.hand.get(i).type)));
+            }
+            return new BangHandMenu(id, inv, c, sp);
+        }, Component.literal("내 손패 (체력 " + me.hp + "/" + me.maxHp + ")")));
+        return 1;
+    }
+
+    private static int list(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
         ServerPlayer sp = ctx.getSource().getPlayerOrException();
         BangGame g = BangMod.game;
         if (g == null || !g.isPlaying()) { ctx.getSource().sendFailure(Component.literal("§c진행 중인 게임이 없습니다.")); return 0; }

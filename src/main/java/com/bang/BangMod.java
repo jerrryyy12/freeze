@@ -18,7 +18,9 @@ public class BangMod {
     public static BangGame game;
 
     public BangMod() {
-        BangItems.register(FMLJavaModLoadingContext.get().getModEventBus());
+        var modBus = FMLJavaModLoadingContext.get().getModEventBus();
+        BangItems.register(modBus);
+        BangMenus.register(modBus);
         MinecraftForge.EVENT_BUS.register(this);
         LOGGER.info("Bang 모드 로드 완료");
     }

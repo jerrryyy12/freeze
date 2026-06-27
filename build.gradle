@@ -6,10 +6,10 @@ plugins {
 }
 
 version = '1.0.0'
-group = 'com.freeze'
+group = 'com.bang'
 
 base {
-    archivesName = 'freeze'
+    archivesName = 'bang'
 }
 
 java.toolchain.languageVersion = JavaLanguageVersion.of(21)
@@ -32,8 +32,8 @@ tasks.withType(JavaCompile).configureEach {
 jar {
     manifest {
         attributes([
-            'Specification-Title'     : 'freeze',
-            'Specification-Vendor'    : 'freeze',
+            'Specification-Title'     : 'bang',
+            'Specification-Vendor'    : 'bang',
             'Specification-Version'   : '1',
             'Implementation-Title'    : project.name,
             'Implementation-Version'  : project.jar.archiveVersion,

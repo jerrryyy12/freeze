@@ -27,6 +27,6 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: Freeze-mod-jar
+          name: Bang-mod-jar
           path: build/libs/*.jar
           if-no-files-found: error
