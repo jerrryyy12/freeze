@@ -22,3 +22,24 @@ description='''지정한 사각형 영역 밖으로 나가면 즉시 사망하�
     versionRange="[26.2,)"
     ordering="NONE"
     side="BOTH"
+
+[[mods]]
+modId="bang"
+version="0.1.0"
+displayName="Bang"
+authors="freeze"
+description='''서부극 카드 게임 BANG!을 마인크래프트에서 (보드게임 방식)'''
+
+[[dependencies.bang]]
+    modId="forge"
+    mandatory=true
+    versionRange="[65,)"
+    ordering="NONE"
+    side="BOTH"
+
+[[dependencies.bang]]
+    modId="minecraft"
+    mandatory=true
+    versionRange="[26.2,)"
+    ordering="NONE"
+    side="BOTH"
