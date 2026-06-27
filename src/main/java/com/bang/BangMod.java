@@ -1,9 +1,11 @@
 package com.bang;
 
 import com.bang.game.BangGame;
+import com.bang.game.BangHeads;
 import com.mojang.logging.LogUtils;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.RegisterCommandsEvent;
+import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
@@ -28,5 +30,13 @@ public class BangMod {
     @SubscribeEvent
     public void onRegisterCommands(RegisterCommandsEvent event) {
         BangCommands.register(event.getDispatcher());
+    }
+
+    @SubscribeEvent
+    public void onServerTick(TickEvent.ServerTickEvent event) {
+        if (event.phase != TickEvent.Phase.END) return;
+        if (game != null && game.isPlaying()) {
+            BangHeads.tick(event.getServer(), game);
+        }
     }
 }

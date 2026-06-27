@@ -21,5 +21,21 @@
   "item.bang.card_mustang": "머스탱",
   "item.bang.card_jail": "감옥",
   "item.bang.card_dynamite": "다이너마이트",
-  "item.bang.card_back": "뱅 카드 뒷면"
+  "item.bang.card_back": "뱅 카드 뒷면",
+  "item.bang.char_bart_cassidy": "바트 캐시디",
+  "item.bang.char_black_jack": "블랙 잭",
+  "item.bang.char_calamity_janet": "칼라미티 자넷",
+  "item.bang.char_el_gringo": "엘 그링고",
+  "item.bang.char_jesse_jones": "제시 존스",
+  "item.bang.char_jourdonnais": "주르도네",
+  "item.bang.char_kit_carlson": "키트 칼슨",
+  "item.bang.char_lucky_duke": "럭키 듀크",
+  "item.bang.char_paul_regret": "폴 리그렛",
+  "item.bang.char_pedro_ramirez": "페드로 라미레즈",
+  "item.bang.char_rose_doolan": "로즈 둘란",
+  "item.bang.char_sid_ketchum": "시드 케첨",
+  "item.bang.char_slab_the_killer": "슬랩 더 킬러",
+  "item.bang.char_suzy_lafayette": "수지 라파예트",
+  "item.bang.char_vulture_sam": "벌처 샘",
+  "item.bang.char_willy_the_kid": "윌리 더 키드"
 }

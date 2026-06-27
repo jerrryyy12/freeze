@@ -1,6 +1,7 @@
 package com.bang;
 
 import com.bang.game.BangGame;
+import com.bang.game.BangHeads;
 import com.bang.game.BangPlayer;
 import com.bang.game.BangTable;
 import com.bang.game.Card;
@@ -109,6 +110,7 @@ public class BangCommands {
         if (!g.host.equals(sp.getUUID())) { ctx.getSource().sendFailure(Component.literal("§c방장만 종료할 수 있습니다.")); return 0; }
         announce(ctx.getSource().getServer(), "§6[BANG] 게임이 종료되었습니다.");
         BangTable.clear(ctx.getSource().getServer());
+        BangHeads.clear();
         BangMod.game = null;
         return 1;
     }

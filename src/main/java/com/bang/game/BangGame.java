@@ -125,6 +125,7 @@ public class BangGame {
             msg(server, p.id, "§7당신의 역할: §f" + p.role.kr + " §8— " + p.role.goal);
             msg(server, p.id, "§7캐릭터: §f" + p.character.kr + " §8(체력 " + p.maxHp + ") — " + p.character.ability);
         }
+        BangHeads.rebuild(server, this);
         beginTurn(server);
         return true;
     }
@@ -469,6 +470,7 @@ public class BangGame {
 
     private void finish(MinecraftServer server, String result) {
         state = State.ENDED;
+        BangHeads.clear();
         broadcast(server, "§6===== 게임 종료 — " + result + " §6=====");
         for (BangPlayer p : order) broadcast(server, "§7" + p.name + ": " + p.role.kr + (p.alive ? "" : " §8(탈락)"));
     }

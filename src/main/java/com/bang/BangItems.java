@@ -1,6 +1,7 @@
 package com.bang;
 
 import com.bang.game.CardType;
+import com.bang.game.CharacterCard;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.CreativeModeTab;
@@ -23,6 +24,7 @@ public class BangItems {
             DeferredRegister.create(Registries.CREATIVE_MODE_TAB, BangMod.MOD_ID);
 
     public static final Map<CardType, RegistryObject<Item>> CARDS = new EnumMap<>(CardType.class);
+    public static final Map<CharacterCard, RegistryObject<Item>> CHARS = new EnumMap<>(CharacterCard.class);
     public static final RegistryObject<Item> CARD_BACK =
             ITEMS.register("card_back", () -> new Item(new Item.Properties()));
 
@@ -30,6 +32,10 @@ public class BangItems {
         for (CardType t : CardType.values()) {
             String name = "card_" + t.name().toLowerCase();
             CARDS.put(t, ITEMS.register(name, () -> new Item(new Item.Properties())));
+        }
+        for (CharacterCard ch : CharacterCard.values()) {
+            String name = "char_" + ch.name().toLowerCase();
+            CHARS.put(ch, ITEMS.register(name, () -> new Item(new Item.Properties())));
         }
     }
 
@@ -40,6 +46,7 @@ public class BangItems {
                     .displayItems((params, output) -> {
                         for (RegistryObject<Item> ro : CARDS.values()) output.accept(ro.get());
                         output.accept(CARD_BACK.get());
+                        for (RegistryObject<Item> ro : CHARS.values()) output.accept(ro.get());
                     })
                     .build());
 
@@ -51,6 +58,12 @@ public class BangItems {
     /** 카드 종류에 해당하는 아이템 */
     public static Item itemFor(CardType type) {
         RegistryObject<Item> ro = CARDS.get(type);
+        return ro == null ? null : ro.get();
+    }
+
+    /** 캐릭터에 해당하는 아이템 */
+    public static Item charItemFor(CharacterCard ch) {
+        RegistryObject<Item> ro = CHARS.get(ch);
         return ro == null ? null : ro.get();
     }
 }
