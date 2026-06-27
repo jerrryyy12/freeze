@@ -18,7 +18,7 @@ public class ChameleonClient {
     public static void onAddLayers(EntityRenderersEvent.AddLayers event) {
         for (var skin : event.getSkins()) {
             // Object 캡처로 제네릭 추론/타입 변환 문제를 피한다.
-            Object renderer = event.getPlayerRenderer(skin);
+            Object renderer = event.getPlayerSkin(skin);
             if (renderer instanceof PlayerRenderer pr) {
                 pr.addLayer(new CamoLayer(pr));
             }
