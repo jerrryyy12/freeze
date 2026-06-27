@@ -8,7 +8,7 @@ import com.mojang.blaze3d.platform.GlStateManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.client.event.RenderGuiEvent;
+import net.minecraftforge.client.event.RenderLevelStageEvent;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
@@ -60,10 +60,11 @@ public class ChameleonInput {
         }
     }
 
-    /** GUI(크로스헤어 포함)가 그려지기 직전 = 월드만 그려진 상태. 여기서 조준점 픽셀을 읽는다. */
+    /** 월드 렌더 후반(파티클까지) = 크로스헤어 그려지기 전. 여기서 조준점 픽셀을 읽는다. */
     @SubscribeEvent
-    public static void onRenderGui(RenderGuiEvent.Pre event) {
+    public static void onRenderLevel(RenderLevelStageEvent event) {
         if (!sampleRequested) return;
+        if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_PARTICLES) return;
         sampleRequested = false;
         int color = readCenterPixel();
         CamoEditState.addColor(color);
@@ -81,7 +82,7 @@ public class ChameleonInput {
         ByteBuffer pb = BufferUtils.createByteBuffer(16);
         GlStateManager._glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, rt.frameBufferId);
         GL11.glReadPixels(cx, cy, 1, 1, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, pb);
-        rt.bindWrite(true); // 프레임버퍼 바인딩 복구
+        rt.bindWrite(false); // 뷰포트는 건드리지 않고 프레임버퍼 바인딩만 복구
         int r = pb.get(0) & 0xFF, g = pb.get(1) & 0xFF, b = pb.get(2) & 0xFF;
         return 0xFF000000 | (r << 16) | (g << 8) | b;
     }
