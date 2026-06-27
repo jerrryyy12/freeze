@@ -47,7 +47,7 @@ public class CamoGame {
     public enum Phase { LOBBY, HIDE, SEEK, REVEAL }
 
     private static final double HIDER_SCALE = 0.5;
-    private static final double SEEKER_SCALE = 2.0;
+    private static final double SEEKER_SCALE = 4.0;
     private static final double HIDER_SPEED = 0.2;
     private static final double NORMAL_SPEED = 0.1;
     private static final String SEEKER_TEAM = "camo_seeker";
