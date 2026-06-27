@@ -117,10 +117,10 @@ public class PaintScreen extends Screen {
         int bw = Math.min(80, (this.width - 20) / 6);
         int x = 10;
         addRenderableWidget(Button.builder(Component.literal("브러시 -"),
-                b -> CamoEditState.brush = Math.max(0, CamoEditState.brush - 1)).bounds(x, by, bw, 20).build());
+                b -> CamoEditState.brush = Math.max(1, CamoEditState.brush - 1)).bounds(x, by, bw, 20).build());
         x += bw + 2;
         addRenderableWidget(Button.builder(Component.literal("브러시 +"),
-                b -> CamoEditState.brush = Math.min(12, CamoEditState.brush + 1)).bounds(x, by, bw, 20).build());
+                b -> CamoEditState.brush = Math.min(16, CamoEditState.brush + 1)).bounds(x, by, bw, 20).build());
         x += bw + 2;
         addRenderableWidget(Button.builder(Component.literal("되돌리기"), b -> doUndo()).bounds(x, by, bw, 20).build());
         x += bw + 2;
@@ -187,7 +187,7 @@ public class PaintScreen extends Screen {
 
         // 브러시 원형 커서
         if (mouseX >= viewX0 && mouseX <= viewX1 && mouseY >= viewY0 && mouseY <= viewY1) {
-            int r = (int) ((CamoEditState.brush + 0.5f) * cell);
+            int r = Math.max(1, CamoEditState.brush * cell / 2);
             drawCircle(g, mouseX, mouseY, r, 0xFF000000);
             drawCircle(g, mouseX, mouseY, r - 1, 0xFFFFFFFF);
         }
@@ -231,7 +231,7 @@ public class PaintScreen extends Screen {
             if (col == CamoEditState.selectedColor) g.fill(x - 1, y - 1, x + 15, y + 15, 0xFFFFFF00);
             g.fill(x, y, x + 14, y + 14, col);
         }
-        g.drawString(this.font, "브러시 " + (CamoEditState.brush * 2 + 1) + "칸  ·  H=위장/스킨",
+        g.drawString(this.font, "브러시 " + CamoEditState.brush + "칸  ·  H=위장/스킨",
                 palX, this.height - 42, 0xFFAAAAAA);
     }
 
@@ -328,8 +328,9 @@ public class PaintScreen extends Screen {
             int tx = f[0] + (int) ((mx - sx[p]) / cell);
             int ty = f[1] + (int) ((my - sy[p]) / cell);
             int b = CamoEditState.brush;
-            for (int oy = -b; oy <= b; oy++) {
-                for (int ox = -b; ox <= b; ox++) {
+            int lo = -(b - 1) / 2, hi = b / 2;
+            for (int oy = lo; oy <= hi; oy++) {
+                for (int ox = lo; ox <= hi; ox++) {
                     int xx = tx + ox, yy = ty + oy;
                     if (xx < f[0] || xx >= f[0] + f[2] || yy < f[1] || yy >= f[1] + f[3]) continue;
                     CamoEditState.pixels[yy * SIZE + xx] = CamoEditState.selectedColor;
