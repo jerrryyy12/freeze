@@ -5,7 +5,8 @@ plugins {
     id 'net.minecraftforge.gradle' version '[6.0.16,6.2)'
 }
 
-version = '1.0.0'
+// 빌드(CI 실행)마다 버전 자동 증가 → jar 이름이 매번 달라짐
+version = "0.4.${System.getenv('GITHUB_RUN_NUMBER') ?: 'dev'}"
 group = 'com.bang'
 
 base {
