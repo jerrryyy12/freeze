@@ -84,8 +84,8 @@ public final class Freecam {
         if (mc.options.keyDown.isDown())  d = d.subtract(look);
         if (mc.options.keyLeft.isDown())  d = d.add(left);
         if (mc.options.keyRight.isDown()) d = d.subtract(left);
-        if (mc.options.keyJump.isDown())  d = d.add(0, 1, 0);
-        if (mc.options.keyShift.isDown()) d = d.add(0, -1, 0);
+        if (mc.options.keyJump.isDown())  d = d.add(0, 1, 0);                       // 스페이스 = 위
+        if (mc.options.keyShift.isDown() || mc.options.keyDrop.isDown()) d = d.add(0, -1, 0); // 시프트/Q = 아래
         if (d.lengthSqr() > 1.0e-6) pos = pos.add(d.normalize().scale(speed));
     }
 

@@ -49,6 +49,10 @@ public class ChameleonInput {
         while (ChameleonClient.FREECAM_ON.consumeClick()) Freecam.enable();
         while (ChameleonClient.FREECAM_OFF.consumeClick()) Freecam.disable();
         Freecam.tick(mc);
+        if (Freecam.isActive()) {
+            // 자유 시점 중에는 Q(버리기)가 게임으로 새지 않게 소비 — 카메라 아래 이동 전용
+            while (mc.options.keyDrop.consumeClick()) { /* 버리기 무시 */ }
+        }
 
         while (ChameleonClient.PAINT_KEY.consumeClick()) {
             if (mc.screen == null) PaintScreen.open();
@@ -66,7 +70,7 @@ public class ChameleonInput {
      */
     private static void handleWallClimb(Minecraft mc) {
         LocalPlayer p = mc.player;
-        if (p == null || mc.screen != null) { wallStuck = false; return; }
+        if (p == null || mc.screen != null || Freecam.isActive()) { wallStuck = false; return; }
         if (p.isSpectator() || p.isPassenger() || p.isFallFlying() || p.getAbilities().flying
                 || p.onClimbable() || p.isInWater() || p.isInLava() || p.onGround()) {
             wallStuck = false;
