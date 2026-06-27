@@ -27,6 +27,8 @@ public class BangItems {
     public static final Map<CharacterCard, RegistryObject<Item>> CHARS = new EnumMap<>(CharacterCard.class);
     public static final RegistryObject<Item> CARD_BACK =
             ITEMS.register("card_back", () -> new Item(new Item.Properties()));
+    public static final RegistryObject<Item> END_TURN =
+            ITEMS.register("end_turn", () -> new Item(new Item.Properties()));
 
     static {
         for (CardType t : CardType.values()) {

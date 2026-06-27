@@ -5,9 +5,11 @@ import com.bang.game.BangHeads;
 import com.bang.game.BangInventory;
 import com.bang.game.BangPlayer;
 import com.mojang.logging.LogUtils;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.item.Item;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.event.TickEvent;
@@ -47,13 +49,15 @@ public class BangMod {
         }
     }
 
-    /** 카드 아이템 우클릭(허공) = 시선 대상에게 사용 */
+    /** 카드/버튼 우클릭(허공) */
     @SubscribeEvent
     public void onRightClickItem(PlayerInteractEvent.RightClickItem event) {
         if (event.getLevel().isClientSide) return;
         if (game == null || !game.isPlaying()) return;
         if (!(event.getEntity() instanceof ServerPlayer sp)) return;
-        if (!BangItems.isCard(event.getItemStack().getItem())) return;
+        Item item = event.getItemStack().getItem();
+        if (item == BangItems.END_TURN.get()) { event.setCanceled(true); endTurnViaButton(sp); return; }
+        if (!BangItems.isCard(item)) return;
         event.setCanceled(true);
         playHeld(sp, BangInventory.lookTarget(sp, game));
     }
@@ -76,17 +80,27 @@ public class BangMod {
         if (server == null) return;
         BangPlayer me = game.get(sp.getUUID());
         if (me == null) return;
-        int idx = sp.getInventory().selected;
+        int slot = sp.getInventory().selected;
+        int idx = (slot < 8) ? slot : slot - 1; // 8번 칸(버튼) 건너뜀
         game.playCard(server, me, idx, target != null ? target.name : null);
         BangInventory.syncAll(server, game);
     }
 
-    /** 게임 중 카드 아이템 드롭 방지 */
+    private void endTurnViaButton(ServerPlayer sp) {
+        MinecraftServer server = sp.getServer();
+        if (server == null) return;
+        BangPlayer me = game.get(sp.getUUID());
+        if (me == null) return;
+        if (!game.isCurrent(me.id)) { sp.sendSystemMessage(Component.literal("§c당신의 턴이 아닙니다.")); return; }
+        game.endTurn(server, me);
+        BangInventory.syncAll(server, game);
+    }
+
+    /** 게임 중 카드/버튼 드롭 방지 */
     @SubscribeEvent
     public void onItemToss(ItemTossEvent event) {
         if (game == null || !game.isPlaying()) return;
-        if (event.getPlayer() instanceof ServerPlayer sp && game.get(sp.getUUID()) != null
-                && BangItems.isCard(event.getEntity().getItem().getItem())) {
+        if (event.getPlayer() instanceof ServerPlayer sp && game.get(sp.getUUID()) != null) {
             event.setCanceled(true);
             MinecraftServer server = sp.getServer();
             if (server != null) BangInventory.syncAll(server, game);

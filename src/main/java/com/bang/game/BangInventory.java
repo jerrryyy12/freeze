@@ -56,10 +56,15 @@ public class BangInventory {
     private static void syncPlayer(ServerPlayer sp, BangPlayer bp) {
         Inventory inv = sp.getInventory();
         inv.clearContent();
-        for (int i = 0; i < bp.hand.size() && i < 36; i++) {
+        // 손패: 8번 칸(턴 종료 버튼)을 건너뛰고 배치
+        for (int i = 0; i < bp.hand.size(); i++) {
+            int slot = (i < 8) ? i : i + 1;
+            if (slot >= 36) break;
             Item it = BangItems.itemFor(bp.hand.get(i).type);
-            if (it != null) inv.setItem(i, new ItemStack(it));
+            if (it != null) inv.setItem(slot, new ItemStack(it));
         }
+        // 9번째 칸 = 턴 종료 버튼
+        inv.setItem(8, new ItemStack(BangItems.END_TURN.get()));
         sp.inventoryMenu.broadcastChanges();
         // 하트 = BANG 목숨 (총알 1 = 하트 1), 게임 중 마크 데미지 무시
         AttributeInstance maxH = sp.getAttribute(Attributes.MAX_HEALTH);
