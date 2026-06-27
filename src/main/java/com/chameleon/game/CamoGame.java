@@ -2,6 +2,9 @@ package com.chameleon.game;
 
 import com.chameleon.net.ChameleonNet;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.protocol.game.ClientboundSetSubtitleTextPacket;
+import net.minecraft.network.protocol.game.ClientboundSetTitleTextPacket;
+import net.minecraft.network.protocol.game.ClientboundSetTitlesAnimationPacket;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
@@ -22,7 +25,7 @@ import java.util.UUID;
 public class CamoGame {
     public enum Role { HIDER, SEEKER }
 
-    private static final double HIDER_SCALE = 0.4;
+    private static final double HIDER_SCALE = 0.3;
     private static final double HIDER_SPEED = 0.2;  // 기본 0.1의 2배
     private static final double NORMAL_SPEED = 0.1;
 
@@ -62,7 +65,7 @@ public class CamoGame {
         hiderCount = hiders;
         ticksLeft = seconds * 20;
         active = true;
-        ChameleonNet.broadcastGameState(true);
+        ChameleonNet.broadcastGameState(true, seconds);
         return new int[]{hiders, seekers};
     }
 
@@ -75,7 +78,7 @@ public class CamoGame {
         active = false;
         ticksLeft = 0;
         hiderCount = 0;
-        ChameleonNet.broadcastGameState(false);
+        ChameleonNet.broadcastGameState(false, 0);
     }
 
     /** 매 서버 틱: (대기 중) 로비 역할배정 / (진행 중) 타이머 + 종료조건. */
@@ -86,15 +89,24 @@ public class CamoGame {
         }
         if (ticksLeft > 0) ticksLeft--;
         if (ticksLeft <= 0) {
-            server.getPlayerList().broadcastSystemMessage(
-                    Component.literal("§e시간 종료! 숨는 사람들이 살아남았습니다."), false);
+            announce(server, Component.literal("§b숨는 사람 승리!"), Component.literal("시간 종료 — 살아남았다"));
             stop(server);
             return;
         }
         if (hiderCount > 0 && aliveHiders(server) == 0) {
-            server.getPlayerList().broadcastSystemMessage(
-                    Component.literal("§c숨는 사람 전멸! 술래 승리."), false);
+            announce(server, Component.literal("§c술래 승리!"), Component.literal("숨는 사람 전멸"));
             stop(server);
+            return;
+        }
+        if (ticksLeft % 20 == 0) ChameleonNet.broadcastGameState(true, secondsLeft());
+    }
+
+    /** 모든 플레이어에게 큰 타이틀 표시(게임 결과). */
+    private static void announce(MinecraftServer server, Component title, Component sub) {
+        for (ServerPlayer p : server.getPlayerList().getPlayers()) {
+            p.connection.send(new ClientboundSetTitlesAnimationPacket(10, 70, 20));
+            p.connection.send(new ClientboundSetSubtitleTextPacket(sub));
+            p.connection.send(new ClientboundSetTitleTextPacket(title));
         }
     }
 

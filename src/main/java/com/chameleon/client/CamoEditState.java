@@ -30,6 +30,7 @@ public class CamoEditState {
     public static boolean eyedropperArmed = false;
     public static boolean camoOn = false; // 현재 위장 표시 중인지(원래 스킨 토글용)
     public static boolean gameActive = false; // 게임 진행 중(H 토글 잠금)
+    public static int gameSecondsLeft = 0;    // HUD 타이머용 남은 시간
     public static final List<Integer> palette = new ArrayList<>();
 
     /** 부위별 베이스(전개도) 영역 — 회색 캔버스로 채울 곳. */

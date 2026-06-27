@@ -7,9 +7,12 @@ import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.platform.GlStateManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
+import net.minecraft.world.entity.player.Player;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.RenderLevelStageEvent;
+import net.minecraftforge.client.event.RenderNameTagEvent;
 import net.minecraftforge.event.TickEvent;
+import net.minecraftforge.eventbus.api.Event;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import org.lwjgl.BufferUtils;
@@ -73,6 +76,14 @@ public class ChameleonInput {
         Minecraft mc = Minecraft.getInstance();
         if (mc.player != null)
             mc.player.displayClientMessage(Component.literal("§a색 추출: #" + String.format("%06X", color & 0xFFFFFF)), true);
+    }
+
+    /** 게임 중에는 머리 위 닉네임을 숨긴다(숨는 사람 위치 노출 방지). */
+    @SubscribeEvent
+    public static void onNameTag(RenderNameTagEvent event) {
+        if (CamoEditState.gameActive && event.getEntity() instanceof Player) {
+            event.setResult(Event.Result.DENY);
+        }
     }
 
     private static int readCenterPixel() {

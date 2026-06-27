@@ -5,6 +5,7 @@ import net.minecraft.client.KeyMapping;
 import net.minecraft.client.renderer.entity.player.PlayerRenderer;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.EntityRenderersEvent;
+import net.minecraftforge.client.event.RegisterGuiOverlaysEvent;
 import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
@@ -29,6 +30,11 @@ public class ChameleonClient {
     public static void onRegisterKeys(RegisterKeyMappingsEvent event) {
         event.register(PAINT_KEY);
         event.register(TOGGLE_KEY);
+    }
+
+    @SubscribeEvent
+    public static void onRegisterOverlays(RegisterGuiOverlaysEvent event) {
+        event.registerAboveAll("camo_timer", ChameleonHud.TIMER);
     }
 
     @SubscribeEvent
