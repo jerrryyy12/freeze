@@ -100,6 +100,10 @@ public class PaintScreen extends Screen {
         addRenderableWidget(hexField);
         updateHexField();
 
+        // 3D 모드 전환 버튼 (컬러 피커 위, 오른쪽 패널 상단)
+        addRenderableWidget(Button.builder(Component.literal("3D 모드"), b -> Paint3DScreen.open())
+                .bounds(palX, 24, 92, 20).build());
+
         // 뷰 전환 버튼
         int vw = Math.min(46, (this.width - paletteW - 20) / 6);
         for (int i = 0; i < 6; i++) {
