@@ -144,12 +144,18 @@ public class PaintScreen extends Screen {
         addRenderableWidget(Button.builder(Component.literal("완료"), b -> this.onClose()).bounds(x, by, bw, 20).build());
     }
 
-    /** 모드에 따라 자유 브러시 또는 블록픽셀 브러시 크기를 조절. */
+    /** 모드에 따라 브러시 크기 조절. 블록픽셀 1칸에서 '-' 누르면 자동으로 자유 브러시로 풀림(세밀). */
     private void brushDelta(int d) {
-        if (CamoEditState.blockPixelMode)
-            CamoEditState.blockBrush = Math.max(1, Math.min(8, CamoEditState.blockBrush + d));
-        else
+        if (CamoEditState.blockPixelMode) {
+            if (d < 0 && CamoEditState.blockBrush <= 1) {
+                CamoEditState.blockPixelMode = false;
+                CamoEditState.brush = Math.max(1, (int) CamoEditState.TEXELS_PER_BLOCKPIXEL);
+            } else {
+                CamoEditState.blockBrush = Math.max(1, Math.min(8, CamoEditState.blockBrush + d));
+            }
+        } else {
             CamoEditState.brush = Math.max(1, Math.min(16, CamoEditState.brush + d));
+        }
     }
 
     private void layout() {
@@ -277,9 +283,9 @@ public class PaintScreen extends Screen {
             g.fill(x, y, x + 14, y + 14, col);
         }
         String binfo = CamoEditState.blockPixelMode
-                ? "§a블록픽셀 " + CamoEditState.blockBrush + "칸 (1칸≈" + String.format("%.1f", CamoEditState.TEXELS_PER_BLOCKPIXEL) + "px)"
+                ? "§a블록픽셀 " + CamoEditState.blockBrush + "칸 (" + (int) CamoEditState.TEXELS_PER_BLOCKPIXEL + "px)"
                 : "브러시 " + CamoEditState.brush + "칸";
-        g.drawString(this.font, binfo + "  ·  H=위장/스킨", palX, this.height - 42, 0xFFAAAAAA);
+        g.drawString(this.font, binfo, palX, this.height - 42, 0xFFAAAAAA);
     }
 
     private void armEyedropper() {
@@ -352,6 +358,10 @@ public class PaintScreen extends Screen {
         if (hexField != null && hexField.isFocused()) return super.keyPressed(keyCode, scanCode, modifiers);
         if (keyCode == GLFW.GLFW_KEY_Z && (modifiers & GLFW.GLFW_MOD_CONTROL) != 0) {
             doUndo();
+            return true;
+        }
+        if (ChameleonClient.PAINT_KEY.matches(keyCode, scanCode)) { // G로 닫기
+            this.onClose();
             return true;
         }
         return super.keyPressed(keyCode, scanCode, modifiers);
