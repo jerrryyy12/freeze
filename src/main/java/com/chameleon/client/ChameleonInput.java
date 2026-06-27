@@ -11,8 +11,10 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.client.event.MovementInputUpdateEvent;
 import net.minecraftforge.client.event.RenderLevelStageEvent;
 import net.minecraftforge.client.event.RenderNameTagEvent;
+import net.minecraftforge.client.event.ViewportEvent;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.Event;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
@@ -35,7 +37,7 @@ public class ChameleonInput {
     private static boolean pendingReopen = false;    // 추출 후 색칠 화면 다시 열기
 
     // 벽타기 설정 (상시 가능)
-    private static final double CLIMB_UP = 0.25;     // 점프키로 벽 오르는 속도(중력 상쇄 포함)
+    private static final double CLIMB_UP = 0.15;     // 점프키로 벽 오르는 속도(이전 0.25의 60%)
 
     @SubscribeEvent
     public static void onClientTick(TickEvent.ClientTickEvent event) {
@@ -43,6 +45,11 @@ public class ChameleonInput {
         Minecraft mc = Minecraft.getInstance();
 
         handleWallClimb(mc);
+
+        // 자유 시점 ON/OFF (4/5) + 카메라 이동
+        while (ChameleonClient.FREECAM_ON.consumeClick()) Freecam.enable();
+        while (ChameleonClient.FREECAM_OFF.consumeClick()) Freecam.disable();
+        Freecam.tick(mc);
 
         if (pendingReopen && mc.screen == null) {
             pendingReopen = false;
@@ -72,8 +79,9 @@ public class ChameleonInput {
 
     /**
      * 벽타기 (상시 가능, 게임 중이 아니어도 작동).
-     * 벽에 밀착(W로 밀고 있을 때)한 상태에서 점프키 → 벽을 타고 올라간다.
-     * 점프키를 안 누르면 정상적으로 떨어진다.
+     * - 벽에 밀착(W로 밀고 있을 때)하면 그 자리에 달라붙는다(미끄러지지 않음).
+     * - 점프키 → 벽을 타고 올라간다.
+     * - 시프트 또는 벽에서 멀어지면 → 손을 떼고 떨어진다.
      */
     private static void handleWallClimb(Minecraft mc) {
         LocalPlayer p = mc.player;
@@ -81,13 +89,16 @@ public class ChameleonInput {
         if (p.isSpectator() || p.isPassenger() || p.isFallFlying()) return;
         if (p.getAbilities().flying) return;
         if (p.onClimbable() || p.isInWater() || p.isInLava()) return; // 사다리/물은 기존 동작
-        if (!p.horizontalCollision) return; // 벽에 밀착(밀고 있을 때)만
+        if (!p.horizontalCollision) return;       // 벽에 밀착(밀고 있을 때)만
+        if (mc.options.keyShift.isDown()) return;  // 시프트 = 손 떼고 떨어짐
 
+        Vec3 m = p.getDeltaMovement();
         if (mc.options.keyJump.isDown()) {
-            Vec3 m = p.getDeltaMovement();
             p.setDeltaMovement(m.x, CLIMB_UP, m.z); // 벽 오르기
-            p.resetFallDistance();
+        } else {
+            p.setDeltaMovement(m.x, 0.0, m.z);      // 벽에 붙어 고정
         }
+        p.resetFallDistance();
     }
 
     /** 월드 렌더 후반(파티클까지) = 크로스헤어 그려지기 전. 여기서 조준점 픽셀을 읽는다. */
@@ -111,6 +122,24 @@ public class ChameleonInput {
         if (CamoEditState.gameActive && event.getEntity() instanceof Player) {
             event.setResult(Event.Result.DENY);
         }
+    }
+
+    /** 카메라 셋업 중: 자유 시점이 켜져 있으면 카메라 위치를 자유 좌표로 덮어쓴다. */
+    @SubscribeEvent
+    public static void onCameraSetup(ViewportEvent.ComputeCameraAngles event) {
+        Freecam.applyCameraPosition(event.getCamera());
+    }
+
+    /** 자유 시점 중에는 캐릭터가 움직이지 않도록 이동 입력을 막는다(이동키는 카메라용). */
+    @SubscribeEvent
+    public static void onMovementInput(MovementInputUpdateEvent event) {
+        if (!Freecam.isActive()) return;
+        var in = event.getInput();
+        in.forwardImpulse = 0f;
+        in.leftImpulse = 0f;
+        in.up = in.down = in.left = in.right = false;
+        in.jumping = false;
+        in.shiftKeyDown = false;
     }
 
     private static int readCenterPixel() {

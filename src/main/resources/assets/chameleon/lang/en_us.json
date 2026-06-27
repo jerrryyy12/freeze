@@ -2,5 +2,7 @@
   "key.categories.chameleon": "Chameleon",
   "key.chameleon.paint": "Open Camo Paint",
   "key.chameleon.toggle": "Toggle Camo / Skin",
+  "key.chameleon.freecam_on": "Free Camera On",
+  "key.chameleon.freecam_off": "Free Camera Off",
   "item.chameleon.gun": "Seeker's Shotgun"
 }

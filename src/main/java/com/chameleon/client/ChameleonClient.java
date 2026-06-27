@@ -25,10 +25,20 @@ public class ChameleonClient {
     public static final KeyMapping TOGGLE_KEY =
             new KeyMapping("key.chameleon.toggle", GLFW.GLFW_KEY_H, "key.categories.chameleon");
 
+    /** 자유 시점 ON (기본 4). */
+    public static final KeyMapping FREECAM_ON =
+            new KeyMapping("key.chameleon.freecam_on", GLFW.GLFW_KEY_4, "key.categories.chameleon");
+
+    /** 자유 시점 OFF/복귀 (기본 5). */
+    public static final KeyMapping FREECAM_OFF =
+            new KeyMapping("key.chameleon.freecam_off", GLFW.GLFW_KEY_5, "key.categories.chameleon");
+
     @SubscribeEvent
     public static void onRegisterKeys(RegisterKeyMappingsEvent event) {
         event.register(PAINT_KEY);
         event.register(TOGGLE_KEY);
+        event.register(FREECAM_ON);
+        event.register(FREECAM_OFF);
     }
 
     @SubscribeEvent
