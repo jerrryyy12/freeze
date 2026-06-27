@@ -43,12 +43,11 @@ public class CamoGame {
         return ticksLeft / 20;
     }
 
-    /** 게임 시작. 반환: {숨는사람 수, 술래 수} */
+    /** 게임 시작. 반환: {숨는사람 수, 술래 수} (로비에서 정해진 역할 사용) */
     public static int[] start(MinecraftServer server, int seconds) {
-        roles.clear();
         int hiders = 0, seekers = 0;
         for (ServerPlayer p : server.getPlayerList().getPlayers()) {
-            Role r = roleFromPad(p);
+            Role r = roles.getOrDefault(p.getUUID(), Role.HIDER);
             roles.put(p.getUUID(), r);
             if (r == Role.SEEKER) {
                 seekers++;
@@ -79,9 +78,12 @@ public class CamoGame {
         ChameleonNet.broadcastGameState(false);
     }
 
-    /** 매 서버 틱: 타이머 + 종료조건. */
+    /** 매 서버 틱: (대기 중) 로비 역할배정 / (진행 중) 타이머 + 종료조건. */
     public static void tick(MinecraftServer server) {
-        if (!active) return;
+        if (!active) {
+            lobbyTick(server);
+            return;
+        }
         if (ticksLeft > 0) ticksLeft--;
         if (ticksLeft <= 0) {
             server.getPlayerList().broadcastSystemMessage(
@@ -105,10 +107,24 @@ public class CamoGame {
         return n;
     }
 
-    private static Role roleFromPad(ServerPlayer p) {
+    /** 대기 중 로비: 양털을 밟는 즉시 역할 배정(변경 시 알림). */
+    private static void lobbyTick(MinecraftServer server) {
+        for (ServerPlayer p : server.getPlayerList().getPlayers()) {
+            Role pad = padRole(p);
+            if (pad != null && roles.get(p.getUUID()) != pad) {
+                roles.put(p.getUUID(), pad);
+                p.displayClientMessage(Component.literal(pad == Role.SEEKER
+                        ? "§c[술래]로 선택됨 — /camo game start 시 시작" : "§b[숨는 사람]으로 선택됨"), true);
+            }
+        }
+    }
+
+    /** 발밑 양털 → 역할(아니면 null = 선택 유지). */
+    private static Role padRole(ServerPlayer p) {
         BlockState below = p.level().getBlockState(p.blockPosition().below());
         if (below.is(Blocks.RED_WOOL)) return Role.SEEKER;
-        return Role.HIDER; // 파란 양털 또는 미선택은 숨는 사람
+        if (below.is(Blocks.BLUE_WOOL)) return Role.HIDER;
+        return null;
     }
 
     /** 숨는 사람: 축소 + 속도2배 + 1하트. */
