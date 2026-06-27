@@ -21,7 +21,11 @@ public class CamoPaintPacket {
     }
 
     public static CamoPaintPacket decode(FriendlyByteBuf buf) {
-        return new CamoPaintPacket(CamoSyncPacket.readPixels(buf));
+        try {
+            return new CamoPaintPacket(CamoSyncPacket.readPixels(buf));
+        } catch (Exception e) {
+            return new CamoPaintPacket(null); // 불일치 방어(연결 유지)
+        }
     }
 
     public static void handle(CamoPaintPacket m, CustomPayloadEvent.Context ctx) {

@@ -22,7 +22,11 @@ public class GameStatePacket {
     }
 
     public static GameStatePacket decode(FriendlyByteBuf buf) {
-        return new GameStatePacket(buf.readBoolean(), buf.readVarInt());
+        try {
+            return new GameStatePacket(buf.readBoolean(), buf.readVarInt());
+        } catch (Exception e) {
+            return new GameStatePacket(false, 0); // 버전 불일치 등 → 안전 기본값(연결 유지)
+        }
     }
 
     public static void handle(GameStatePacket m, CustomPayloadEvent.Context ctx) {

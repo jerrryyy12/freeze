@@ -35,8 +35,12 @@ public class CamoSyncPacket {
     }
 
     public static CamoSyncPacket decode(FriendlyByteBuf buf) {
-        UUID id = buf.readUUID();
-        return new CamoSyncPacket(id, readPixels(buf));
+        try {
+            UUID id = buf.readUUID();
+            return new CamoSyncPacket(id, readPixels(buf));
+        } catch (Exception e) {
+            return new CamoSyncPacket(new UUID(0L, 0L), null); // 불일치 방어(연결 유지)
+        }
     }
 
     /**
