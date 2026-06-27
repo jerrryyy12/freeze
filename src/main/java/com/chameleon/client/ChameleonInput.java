@@ -89,6 +89,10 @@ public class ChameleonInput {
 
     private static void toggleCamo(Minecraft mc) {
         if (mc.player == null) return;
+        if (CamoEditState.gameActive) {
+            mc.player.displayClientMessage(Component.literal("§7게임 중엔 위장을 끌 수 없어요"), true);
+            return;
+        }
         if (CamoEditState.camoOn) {
             CamoClient.apply(mc.player.getUUID(), null);
             ChameleonNet.sendPaintToServer(new CamoPaintPacket(null));

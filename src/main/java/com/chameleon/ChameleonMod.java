@@ -1,10 +1,12 @@
 package com.chameleon;
 
+import com.chameleon.game.CamoGame;
 import com.chameleon.net.ChameleonNet;
 import com.mojang.logging.LogUtils;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.RegisterCommandsEvent;
+import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
@@ -34,9 +36,17 @@ public class ChameleonMod {
     }
 
     @SubscribeEvent
+    public void onServerTick(TickEvent.ServerTickEvent event) {
+        if (event.phase == TickEvent.Phase.END) {
+            CamoGame.tick(event.getServer());
+        }
+    }
+
+    @SubscribeEvent
     public void onLogin(PlayerEvent.PlayerLoggedInEvent event) {
         if (event.getEntity() instanceof ServerPlayer sp) {
             CamoStore.onLogin(sp);
+            ChameleonNet.sendGameState(sp, CamoGame.isActive());
         }
     }
 }

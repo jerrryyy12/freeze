@@ -1,7 +1,9 @@
 package com.chameleon;
 
+import com.chameleon.game.CamoGame;
 import com.chameleon.net.CamoSyncPacket;
 import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.arguments.IntegerArgumentType;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
@@ -28,7 +30,47 @@ public class CamoCommands {
         d.register(Commands.literal("camo")
                 .then(Commands.literal("paint").executes(ctx -> paint(ctx.getSource())))
                 .then(Commands.literal("sample").executes(ctx -> sample(ctx.getSource())))
-                .then(Commands.literal("clear").executes(ctx -> clear(ctx.getSource()))));
+                .then(Commands.literal("clear").executes(ctx -> clear(ctx.getSource())))
+                .then(Commands.literal("game")
+                        .then(Commands.literal("start").requires(s -> s.hasPermission(2))
+                                .executes(ctx -> gameStart(ctx.getSource(), 300))
+                                .then(Commands.argument("seconds", IntegerArgumentType.integer(10, 3600))
+                                        .executes(ctx -> gameStart(ctx.getSource(), IntegerArgumentType.getInteger(ctx, "seconds")))))
+                        .then(Commands.literal("stop").requires(s -> s.hasPermission(2))
+                                .executes(ctx -> gameStop(ctx.getSource())))
+                        .then(Commands.literal("status")
+                                .executes(ctx -> gameStatus(ctx.getSource())))));
+    }
+
+    private static int gameStart(CommandSourceStack src, int seconds) {
+        if (src.getServer() == null) return 0;
+        if (CamoGame.isActive()) {
+            src.sendFailure(Component.literal("이미 게임이 진행 중입니다. (/camo game stop)"));
+            return 0;
+        }
+        int[] c = CamoGame.start(src.getServer(), seconds);
+        src.sendSuccess(() -> Component.literal("§a게임 시작! 숨는 사람 " + c[0] + "명, 술래 " + c[1] + "명 · 제한 " + seconds + "초"), true);
+        if (c[1] == 0) src.sendSuccess(() -> Component.literal("§e※ 술래(빨간 양털) 없음 — 빨간 양털 위에서 시작하세요."), false);
+        return 1;
+    }
+
+    private static int gameStop(CommandSourceStack src) {
+        if (src.getServer() == null || !CamoGame.isActive()) {
+            src.sendFailure(Component.literal("진행 중인 게임이 없습니다."));
+            return 0;
+        }
+        CamoGame.stop(src.getServer());
+        src.sendSuccess(() -> Component.literal("§7게임 종료."), true);
+        return 1;
+    }
+
+    private static int gameStatus(CommandSourceStack src) {
+        if (!CamoGame.isActive()) {
+            src.sendSuccess(() -> Component.literal("게임 없음. 파란 양털=숨기, 빨간 양털=술래 위에서 /camo game start"), false);
+        } else {
+            src.sendSuccess(() -> Component.literal("게임 진행 중 · 남은 시간 " + CamoGame.secondsLeft() + "초"), false);
+        }
+        return 1;
     }
 
     private static int paint(CommandSourceStack src) {

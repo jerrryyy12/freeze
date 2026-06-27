@@ -35,6 +35,22 @@ public class ChameleonNet {
                 .decoder(OpenPaintPacket::decode)
                 .consumerMainThread(OpenPaintPacket::handle)
                 .add();
+
+        CHANNEL.messageBuilder(GameStatePacket.class)
+                .encoder(GameStatePacket::encode)
+                .decoder(GameStatePacket::decode)
+                .consumerMainThread(GameStatePacket::handle)
+                .add();
+    }
+
+    /** 서버 → 모든 클라: 게임 진행 여부 */
+    public static void broadcastGameState(boolean active) {
+        CHANNEL.send(new GameStatePacket(active), PacketDistributor.ALL.noArg());
+    }
+
+    /** 서버 → 특정 플레이어: 게임 진행 여부(접속 시 동기화) */
+    public static void sendGameState(ServerPlayer player, boolean active) {
+        CHANNEL.send(new GameStatePacket(active), PacketDistributor.PLAYER.with(player));
     }
 
     /** 서버 → 모든 클라이언트 */
