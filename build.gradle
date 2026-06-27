@@ -1,4 +1,4 @@
-// Minecraft 1.21.1 Forge 모드 (ForgeGradle 6)
+// Minecraft 1.21.1 Forge 모드 (MECCHA CHAMELEON / ForgeGradle 6)
 plugins {
     id 'eclipse'
     id 'idea'
@@ -6,11 +6,11 @@ plugins {
 }
 
 // 빌드(CI 실행)마다 버전 자동 증가 → jar 이름이 매번 달라짐
-version = "0.4.${System.getenv('GITHUB_RUN_NUMBER') ?: 'dev'}"
-group = 'com.bang'
+version = "0.1.${System.getenv('GITHUB_RUN_NUMBER') ?: 'dev'}"
+group = 'com.chameleon'
 
 base {
-    archivesName = 'bang'
+    archivesName = 'chameleon'
 }
 
 java.toolchain.languageVersion = JavaLanguageVersion.of(21)
@@ -33,8 +33,8 @@ tasks.withType(JavaCompile).configureEach {
 jar {
     manifest {
         attributes([
-            'Specification-Title'     : 'bang',
-            'Specification-Vendor'    : 'bang',
+            'Specification-Title'     : 'chameleon',
+            'Specification-Vendor'    : 'chameleon',
             'Specification-Version'   : '1',
             'Implementation-Title'    : project.name,
             'Implementation-Version'  : project.jar.archiveVersion,
