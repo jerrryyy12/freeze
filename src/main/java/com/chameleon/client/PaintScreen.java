@@ -114,13 +114,14 @@ public class PaintScreen extends Screen {
 
         // 컨트롤 버튼 (하단)
         int by = this.height - 26;
-        int bw = Math.min(80, (this.width - 20) / 6);
+        int bw = Math.min(76, (this.width - 20) / 7);
         int x = 10;
-        addRenderableWidget(Button.builder(Component.literal("브러시 -"),
-                b -> CamoEditState.brush = Math.max(1, CamoEditState.brush - 1)).bounds(x, by, bw, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("크기 -"), b -> brushDelta(-1)).bounds(x, by, bw, 20).build());
         x += bw + 2;
-        addRenderableWidget(Button.builder(Component.literal("브러시 +"),
-                b -> CamoEditState.brush = Math.min(16, CamoEditState.brush + 1)).bounds(x, by, bw, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("크기 +"), b -> brushDelta(+1)).bounds(x, by, bw, 20).build());
+        x += bw + 2;
+        addRenderableWidget(Button.builder(Component.literal("블록픽셀"),
+                b -> CamoEditState.blockPixelMode = !CamoEditState.blockPixelMode).bounds(x, by, bw, 20).build());
         x += bw + 2;
         addRenderableWidget(Button.builder(Component.literal("되돌리기"), b -> doUndo()).bounds(x, by, bw, 20).build());
         x += bw + 2;
@@ -133,6 +134,14 @@ public class PaintScreen extends Screen {
         }).bounds(x, by, bw, 20).build());
         x += bw + 2;
         addRenderableWidget(Button.builder(Component.literal("완료"), b -> this.onClose()).bounds(x, by, bw, 20).build());
+    }
+
+    /** 모드에 따라 자유 브러시 또는 블록픽셀 브러시 크기를 조절. */
+    private void brushDelta(int d) {
+        if (CamoEditState.blockPixelMode)
+            CamoEditState.blockBrush = Math.max(1, Math.min(8, CamoEditState.blockBrush + d));
+        else
+            CamoEditState.brush = Math.max(1, Math.min(16, CamoEditState.brush + d));
     }
 
     private void layout() {
@@ -196,12 +205,29 @@ public class PaintScreen extends Screen {
         renderPicker(g);
         renderPresets(g);
 
-        // 브러시 원형 커서
+        // 브러시 커서 (자유=원, 블록픽셀=사각형)
         if (mouseX >= viewX0 && mouseX <= viewX1 && mouseY >= viewY0 && mouseY <= viewY1) {
-            int r = Math.max(1, CamoEditState.brush * cell / 2);
-            drawCircle(g, mouseX, mouseY, r, 0xFF000000);
-            drawCircle(g, mouseX, mouseY, r - 1, 0xFFFFFFFF);
+            if (CamoEditState.blockPixelMode) {
+                int side = Math.max(2, (int) Math.round(
+                        CamoEditState.blockBrush * CamoEditState.TEXELS_PER_BLOCKPIXEL * cell));
+                drawSquare(g, mouseX, mouseY, side, 0xFF000000);
+                drawSquare(g, mouseX, mouseY, side - 2, 0xFFFFFFFF);
+            } else {
+                int r = Math.max(1, CamoEditState.brush * cell / 2);
+                drawCircle(g, mouseX, mouseY, r, 0xFF000000);
+                drawCircle(g, mouseX, mouseY, r - 1, 0xFFFFFFFF);
+            }
         }
+    }
+
+    private void drawSquare(GuiGraphics g, int cxp, int cyp, int side, int color) {
+        if (side < 2) return;
+        int hh = side / 2;
+        int x0 = cxp - hh, y0 = cyp - hh, x1 = cxp + hh, y1 = cyp + hh;
+        g.fill(x0, y0, x1, y0 + 1, color);
+        g.fill(x0, y1 - 1, x1, y1, color);
+        g.fill(x0, y0, x0 + 1, y1, color);
+        g.fill(x1 - 1, y0, x1, y1, color);
     }
 
     private void drawCircle(GuiGraphics g, int cxp, int cyp, int r, int color) {
@@ -242,8 +268,10 @@ public class PaintScreen extends Screen {
             if (col == CamoEditState.selectedColor) g.fill(x - 1, y - 1, x + 15, y + 15, 0xFFFFFF00);
             g.fill(x, y, x + 14, y + 14, col);
         }
-        g.drawString(this.font, "브러시 " + CamoEditState.brush + "칸  ·  H=위장/스킨",
-                palX, this.height - 42, 0xFFAAAAAA);
+        String binfo = CamoEditState.blockPixelMode
+                ? "§a블록픽셀 " + CamoEditState.blockBrush + "칸 (1칸≈" + String.format("%.1f", CamoEditState.TEXELS_PER_BLOCKPIXEL) + "px)"
+                : "브러시 " + CamoEditState.brush + "칸";
+        g.drawString(this.font, binfo + "  ·  H=위장/스킨", palX, this.height - 42, 0xFFAAAAAA);
     }
 
     private void armEyedropper() {
@@ -338,15 +366,7 @@ public class PaintScreen extends Screen {
             if (mx < sx[p] || mx >= sx[p] + w || my < sy[p] || my >= sy[p] + h2) continue;
             int tx = f[0] + (int) ((mx - sx[p]) / cell);
             int ty = f[1] + (int) ((my - sy[p]) / cell);
-            int b = CamoEditState.brush;
-            int lo = -(b - 1) / 2, hi = b / 2;
-            for (int oy = lo; oy <= hi; oy++) {
-                for (int ox = lo; ox <= hi; ox++) {
-                    int xx = tx + ox, yy = ty + oy;
-                    if (xx < f[0] || xx >= f[0] + f[2] || yy < f[1] || yy >= f[1] + f[3]) continue;
-                    CamoEditState.pixels[yy * SIZE + xx] = CamoEditState.selectedColor;
-                }
-            }
+            CamoEditState.applyBrushOnFace(f, tx, ty);
             dirty = true;
             return true;
         }
