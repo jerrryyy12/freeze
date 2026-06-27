@@ -23,15 +23,37 @@ public class ChameleonNet {
                 .decoder(CamoSyncPacket::decode)
                 .consumerMainThread(CamoSyncPacket::handle)
                 .add();
+
+        CHANNEL.messageBuilder(CamoPaintPacket.class)
+                .encoder(CamoPaintPacket::encode)
+                .decoder(CamoPaintPacket::decode)
+                .consumerMainThread(CamoPaintPacket::handle)
+                .add();
+
+        CHANNEL.messageBuilder(OpenPaintPacket.class)
+                .encoder(OpenPaintPacket::encode)
+                .decoder(OpenPaintPacket::decode)
+                .consumerMainThread(OpenPaintPacket::handle)
+                .add();
     }
 
-    /** 모든 클라이언트에게 전송 */
+    /** 서버 → 모든 클라이언트 */
     public static void broadcast(CamoSyncPacket p) {
         CHANNEL.send(p, PacketDistributor.ALL.noArg());
     }
 
-    /** 특정 플레이어에게 전송 */
+    /** 서버 → 특정 플레이어 */
     public static void sendTo(ServerPlayer player, CamoSyncPacket p) {
         CHANNEL.send(p, PacketDistributor.PLAYER.with(player));
+    }
+
+    /** 서버 → 특정 플레이어: 페인트 화면 열기 */
+    public static void sendOpenPaint(ServerPlayer player) {
+        CHANNEL.send(new OpenPaintPacket(), PacketDistributor.PLAYER.with(player));
+    }
+
+    /** 클라이언트 → 서버: 내가 칠한 텍스처 업로드 */
+    public static void sendPaintToServer(CamoPaintPacket p) {
+        CHANNEL.send(p, PacketDistributor.SERVER.noArg());
     }
 }

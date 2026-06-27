@@ -26,8 +26,20 @@ public class CamoCommands {
 
     public static void register(CommandDispatcher<CommandSourceStack> d) {
         d.register(Commands.literal("camo")
+                .then(Commands.literal("paint").executes(ctx -> paint(ctx.getSource())))
                 .then(Commands.literal("sample").executes(ctx -> sample(ctx.getSource())))
                 .then(Commands.literal("clear").executes(ctx -> clear(ctx.getSource()))));
+    }
+
+    private static int paint(CommandSourceStack src) {
+        ServerPlayer sp;
+        try {
+            sp = src.getPlayerOrException();
+        } catch (Exception e) {
+            return 0;
+        }
+        com.chameleon.net.ChameleonNet.sendOpenPaint(sp);
+        return 1;
     }
 
     private static int sample(CommandSourceStack src) {

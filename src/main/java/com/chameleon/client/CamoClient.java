@@ -55,6 +55,11 @@ public class CamoClient {
         return TEX.get(id);
     }
 
+    /** 현재 위장 픽셀(없으면 null). 페인트 화면 초기값으로 사용. */
+    public static int[] getPixels(UUID id) {
+        return PIXELS.get(id);
+    }
+
     private static void remove(UUID id) {
         PIXELS.remove(id);
         DYN.remove(id);
