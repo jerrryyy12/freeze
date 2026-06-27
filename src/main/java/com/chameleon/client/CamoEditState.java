@@ -10,8 +10,10 @@ import net.minecraft.world.level.material.MapColor;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -74,7 +76,16 @@ public class CamoEditState {
                 resetCanvas();
             }
         }
-        if (palette.isEmpty()) buildPalette();
+        if (palette.isEmpty()) refreshPalette();
+    }
+
+    /** 게임 종료 시: 그린 캔버스 초기화 + 위장 해제(원래 스킨). */
+    public static void resetForGameEnd() {
+        pixels = null;          // 다음에 색칠 화면을 열면 빈 캔버스
+        undoStack.clear();
+        camoOn = false;
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.player != null) CamoClient.apply(mc.player.getUUID(), null); // 내 위장 텍스처 제거
     }
 
     public static void resetCanvas() {
@@ -130,53 +141,63 @@ public class CamoEditState {
                 pixels[yy * SIZE + xx] = selectedColor;
     }
 
-    public static void buildPalette() {
+    /** 기본 팔레트 (회색 + 무지개). */
+    private static final int[] BASICS = {
+            0xFF000000, 0xFF404040, 0xFF808080, 0xFFB0B0B0, 0xFFD8D8D8, 0xFFFFFFFF,
+            0xFFFF0000, 0xFFFF6A00, 0xFFFFD800, 0xFFB6FF00, 0xFF00FF21, 0xFF00FFA8,
+            0xFF00FFFF, 0xFF0094FF, 0xFF0026FF, 0xFF7F00FF, 0xFFFF00DC, 0xFFFF006E,
+            0xFF8B5A2B, 0xFF5A3A1A, 0xFFC8A05A, 0xFFF0C8A0, 0xFF3A5F0B, 0xFF1E5AA8,
+    };
+
+    /** 스포이드로 추출한 색(여러 번 열어도 유지). */
+    private static final List<Integer> extracted = new ArrayList<>();
+
+    /**
+     * 팔레트 갱신: [스포이드 추출색] + [주변 블록색(많은 순)] + [기본색].
+     * 색칠 화면을 열 때마다 호출해 현재 위치의 주변 블록색이 뜨도록 한다.
+     */
+    public static void refreshPalette() {
         Set<Integer> set = new LinkedHashSet<>();
-
-        // 주변 블록 색 (가까운 것 우선)
-        Minecraft mc = Minecraft.getInstance();
-        if (mc.player != null && mc.level != null) {
-            Level level = mc.level;
-            BlockPos c = mc.player.blockPosition();
-            int R = 8;
-            outer:
-            for (int rad = 0; rad <= R; rad++) {
-                for (int dx = -rad; dx <= rad; dx++)
-                    for (int dy = -rad; dy <= rad; dy++)
-                        for (int dz = -rad; dz <= rad; dz++) {
-                            if (Math.max(Math.abs(dx), Math.max(Math.abs(dy), Math.abs(dz))) != rad) continue;
-                            BlockPos p = c.offset(dx, dy, dz);
-                            BlockState st = level.getBlockState(p);
-                            if (st.isAir()) continue;
-                            MapColor mcCol = st.getMapColor(level, p);
-                            if (mcCol != MapColor.NONE) set.add(0xFF000000 | (mcCol.col & 0xFFFFFF));
-                            if (set.size() >= 40) break outer;
-                        }
-            }
-        }
-
-        // 기본 팔레트 (회색 + 무지개)
-        int[] basics = {
-                0xFF000000, 0xFF404040, 0xFF808080, 0xFFB0B0B0, 0xFFD8D8D8, 0xFFFFFFFF,
-                0xFFFF0000, 0xFFFF6A00, 0xFFFFD800, 0xFFB6FF00, 0xFF00FF21, 0xFF00FFA8,
-                0xFF00FFFF, 0xFF0094FF, 0xFF0026FF, 0xFF7F00FF, 0xFFFF00DC, 0xFFFF006E,
-                0xFF8B5A2B, 0xFF5A3A1A, 0xFFC8A05A, 0xFFF0C8A0, 0xFF3A5F0B, 0xFF1E5AA8,
-        };
-        for (int b : basics) set.add(b);
-
+        set.addAll(extracted);             // 스포이드 추출색 먼저
+        set.addAll(nearbyBlockColors());   // 주변 블록색(많이 보이는 색 우선)
+        for (int b : BASICS) set.add(b);   // 기본색
         palette.clear();
         palette.addAll(set);
-        if (selectedColorMissing()) selectedColor = palette.isEmpty() ? 0xFFFF0000 : palette.get(0);
+        if (!palette.contains(selectedColor))
+            selectedColor = palette.isEmpty() ? 0xFFFF0000 : palette.get(0);
     }
 
-    private static boolean selectedColorMissing() {
-        return !palette.contains(selectedColor);
+    /** 플레이어 주변 블록의 대표색(MapColor)을 많이 보이는 순으로 모은다. */
+    private static List<Integer> nearbyBlockColors() {
+        List<Integer> out = new ArrayList<>();
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.player == null || mc.level == null) return out;
+        Level level = mc.level;
+        BlockPos c = mc.player.blockPosition();
+        int R = 8;
+        Map<Integer, Integer> freq = new HashMap<>();
+        for (int dx = -R; dx <= R; dx++)
+            for (int dy = -R; dy <= R; dy++)
+                for (int dz = -R; dz <= R; dz++) {
+                    BlockPos p = c.offset(dx, dy, dz);
+                    BlockState st = level.getBlockState(p);
+                    if (st.isAir()) continue;
+                    MapColor col = st.getMapColor(level, p);
+                    if (col == MapColor.NONE) continue;
+                    freq.merge(0xFF000000 | (col.col & 0xFFFFFF), 1, Integer::sum);
+                }
+        List<Map.Entry<Integer, Integer>> entries = new ArrayList<>(freq.entrySet());
+        entries.sort((a, b) -> b.getValue() - a.getValue());
+        for (int i = 0; i < entries.size() && i < 32; i++) out.add(entries.get(i).getKey());
+        return out;
     }
 
-    /** 스포이드로 추출한 색을 팔레트 맨 앞에 추가하고 선택. */
+    /** 스포이드로 추출한 색을 맨 앞에 추가하고 선택. 팔레트 갱신. */
     public static void addColor(int argb) {
-        palette.remove((Integer) argb);
-        palette.add(0, argb);
+        extracted.remove((Integer) argb);
+        extracted.add(0, argb);
+        while (extracted.size() > 24) extracted.remove(extracted.size() - 1);
         selectedColor = argb;
+        refreshPalette();
     }
 }

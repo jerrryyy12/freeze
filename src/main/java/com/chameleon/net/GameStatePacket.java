@@ -32,8 +32,12 @@ public class GameStatePacket {
     public static void handle(GameStatePacket m, CustomPayloadEvent.Context ctx) {
         ctx.setPacketHandled(true);
         if (FMLEnvironment.dist == Dist.CLIENT) {
+            boolean wasActive = CamoEditState.gameActive;
             CamoEditState.gameActive = m.active;
             CamoEditState.gameSecondsLeft = m.secondsLeft;
+            if (wasActive && !m.active) {
+                CamoEditState.resetForGameEnd(); // 게임 종료 → 그린 것 초기화 + 원래 스킨
+            }
         }
     }
 }

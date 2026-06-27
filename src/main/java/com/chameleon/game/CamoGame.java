@@ -1,6 +1,7 @@
 package com.chameleon.game;
 
 import com.chameleon.ChameleonItems;
+import com.chameleon.CamoStore;
 import com.chameleon.net.ChameleonNet;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.Holder;
@@ -223,6 +224,7 @@ public class CamoGame {
 
     /** 종료 시 복구. */
     private static void restore(MinecraftServer server, ServerPlayer p) {
+        CamoStore.set(p.getUUID(), null); // 위장 텍스처 해제(원래 스킨) — 전체 브로드캐스트
         setAttr(p, Attributes.SCALE, 1.0);
         setAttr(p, Attributes.MOVEMENT_SPEED, NORMAL_SPEED);
         AttributeInstance maxH = p.getAttribute(Attributes.MAX_HEALTH);

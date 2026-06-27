@@ -60,6 +60,7 @@ public class PaintScreen extends Screen {
 
     public static void open() {
         CamoEditState.ensureInit();
+        CamoEditState.refreshPalette(); // 열 때마다 주변 블록색 갱신
         Minecraft.getInstance().setScreen(new PaintScreen());
     }
 
@@ -260,7 +261,7 @@ public class PaintScreen extends Screen {
     }
 
     private void renderPresets(GuiGraphics g) {
-        g.drawString(this.font, "추출색", palX, presetY - 11, 0xFFFFFFFF);
+        g.drawString(this.font, "팔레트 (주변 블록색·추출색)", palX, presetY - 11, 0xFFFFFFFF);
         for (int i = 0; i < CamoEditState.palette.size(); i++) {
             int x = palX + (i % 8) * 16, y = presetY + (i / 8) * 16;
             if (y > this.height - 50) break;
