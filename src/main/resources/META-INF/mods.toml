@@ -1,5 +1,5 @@
 modLoader="javafml"
-loaderVersion="[65,)"
+loaderVersion="[52,)"
 license="MIT"
 
 [[mods]]
@@ -12,14 +12,14 @@ description='''지정한 사각형 영역 밖으로 나가면 즉시 사망하�
 [[dependencies.freeze]]
     modId="forge"
     mandatory=true
-    versionRange="[65,)"
+    versionRange="[52,)"
     ordering="NONE"
     side="BOTH"
 
 [[dependencies.freeze]]
     modId="minecraft"
     mandatory=true
-    versionRange="[26.2,)"
+    versionRange="[1.21.1,1.22)"
     ordering="NONE"
     side="BOTH"
 
@@ -33,13 +33,13 @@ description='''서부극 카드 게임 BANG!을 마인크래프트에서 (보드
 [[dependencies.bang]]
     modId="forge"
     mandatory=true
-    versionRange="[65,)"
+    versionRange="[52,)"
     ordering="NONE"
     side="BOTH"
 
 [[dependencies.bang]]
     modId="minecraft"
     mandatory=true
-    versionRange="[26.2,)"
+    versionRange="[1.21.1,1.22)"
     ordering="NONE"
     side="BOTH"
