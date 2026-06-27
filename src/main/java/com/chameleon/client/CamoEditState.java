@@ -38,6 +38,8 @@ public class CamoEditState {
     public static int view = 0; // 0앞 1뒤 2좌 3우 4위 5아래
     public static boolean camoOn = false; // 현재 위장 표시 중인지(원래 스킨 토글용)
     public static boolean gameActive = false; // 게임 진행 중(H 토글 잠금)
+    public static int phase = 0;              // 0로비 1숨기 2찾기 3공개
+    public static boolean hideNames = false;  // 닉네임 숨김(숨기/찾기 페이즈)
     public static int gameSecondsLeft = 0;    // HUD 타이머용 남은 시간
     public static final List<Integer> palette = new ArrayList<>();
 

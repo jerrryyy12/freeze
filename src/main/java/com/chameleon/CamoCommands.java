@@ -49,7 +49,7 @@ public class CamoCommands {
             return 0;
         }
         int[] c = CamoGame.start(src.getServer(), seconds);
-        src.sendSuccess(() -> Component.literal("§a게임 시작! 숨는 사람 " + c[0] + "명, 술래 " + c[1] + "명 · 제한 " + seconds + "초"), true);
+        src.sendSuccess(() -> Component.literal("§a게임 시작! 숨는 사람 " + c[0] + "명, 술래 " + c[1] + "명 · 숨기 3분 + 찾기 " + seconds + "초"), true);
         if (c[1] == 0) src.sendSuccess(() -> Component.literal("§e※ 술래(빨간 양털) 없음 — 빨간 양털 위에서 시작하세요."), false);
         return 1;
     }

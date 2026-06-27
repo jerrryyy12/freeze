@@ -43,14 +43,14 @@ public class ChameleonNet {
                 .add();
     }
 
-    /** 서버 → 모든 클라: 게임 진행 여부 + 남은 시간 */
-    public static void broadcastGameState(boolean active, int secondsLeft) {
-        CHANNEL.send(new GameStatePacket(active, secondsLeft), PacketDistributor.ALL.noArg());
+    /** 서버 → 모든 클라: 게임 페이즈 + 남은 시간 */
+    public static void broadcastGameState(int phase, int secondsLeft) {
+        CHANNEL.send(new GameStatePacket(phase, secondsLeft), PacketDistributor.ALL.noArg());
     }
 
-    /** 서버 → 특정 플레이어: 게임 진행 여부(접속 시 동기화) */
-    public static void sendGameState(ServerPlayer player, boolean active, int secondsLeft) {
-        CHANNEL.send(new GameStatePacket(active, secondsLeft), PacketDistributor.PLAYER.with(player));
+    /** 서버 → 특정 플레이어: 게임 페이즈(접속 시 동기화) */
+    public static void sendGameState(ServerPlayer player, int phase, int secondsLeft) {
+        CHANNEL.send(new GameStatePacket(phase, secondsLeft), PacketDistributor.PLAYER.with(player));
     }
 
     /** 서버 → 모든 클라이언트 */

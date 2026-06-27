@@ -9,6 +9,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.MovementInputUpdateEvent;
@@ -34,7 +35,8 @@ import java.nio.ByteBuffer;
 public class ChameleonInput {
 
     // 벽타기 설정 (상시 가능)
-    private static final double CLIMB_UP = 0.15;     // 점프키로 벽 오르는 속도(이전 0.25의 60%)
+    private static final double CLIMB_SPEED = 0.15;  // 벽 오르내림 속도
+    private static boolean wallStuck = false;        // 벽에 붙어있는 상태(Q로 내려오거나 땅/이탈 전까지 유지)
 
     @SubscribeEvent
     public static void onClientTick(TickEvent.ClientTickEvent event) {
@@ -58,26 +60,36 @@ public class ChameleonInput {
 
     /**
      * 벽타기 (상시 가능, 게임 중이 아니어도 작동).
-     * - 벽에 밀착(W로 밀고 있을 때)하면 그 자리에 달라붙는다(미끄러지지 않음).
-     * - 점프키 → 벽을 타고 올라간다.
-     * - 시프트 또는 벽에서 멀어지면 → 손을 떼고 떨어진다.
+     * - 벽에 밀착(W로 밀고 있을 때)하면 그 자리에 달라붙는다(미끄러지지 않음, 유지).
+     * - 점프키 = 위로, Q(아이템 버리기 키) = 아래로, 아무것도 안 누르면 그 자리 정지.
+     * - 땅에 닿거나 벽에서 완전히 멀어지면 해제된다.
      */
     private static void handleWallClimb(Minecraft mc) {
         LocalPlayer p = mc.player;
-        if (p == null || mc.screen != null) return;
-        if (p.isSpectator() || p.isPassenger() || p.isFallFlying()) return;
-        if (p.getAbilities().flying) return;
-        if (p.onClimbable() || p.isInWater() || p.isInLava()) return; // 사다리/물은 기존 동작
-        if (!p.horizontalCollision) return;       // 벽에 밀착(밀고 있을 때)만
-        if (mc.options.keyShift.isDown()) return;  // 시프트 = 손 떼고 떨어짐
+        if (p == null || mc.screen != null) { wallStuck = false; return; }
+        if (p.isSpectator() || p.isPassenger() || p.isFallFlying() || p.getAbilities().flying
+                || p.onClimbable() || p.isInWater() || p.isInLava() || p.onGround()) {
+            wallStuck = false;
+            return;
+        }
+
+        if (p.horizontalCollision) wallStuck = true;       // 벽에 밀착하면 붙음
+        if (wallStuck && !nearWall(p)) wallStuck = false;  // 벽에서 완전히 떨어지면 해제(낙하)
+        if (!wallStuck) return;
 
         Vec3 m = p.getDeltaMovement();
-        if (mc.options.keyJump.isDown()) {
-            p.setDeltaMovement(m.x, CLIMB_UP, m.z); // 벽 오르기
-        } else {
-            p.setDeltaMovement(m.x, 0.0, m.z);      // 벽에 붙어 고정
-        }
+        double vy;
+        if (mc.options.keyJump.isDown())      vy = CLIMB_SPEED;   // 위로
+        else if (mc.options.keyDrop.isDown()) vy = -CLIMB_SPEED;  // Q = 아래로
+        else                                  vy = 0.0;           // 그 자리 정지
+        p.setDeltaMovement(m.x, vy, m.z);
         p.resetFallDistance();
+    }
+
+    /** 플레이어 옆(수평)에 벽이 있는지 — 벽에서 떨어졌는지 판단용. */
+    private static boolean nearWall(LocalPlayer p) {
+        AABB box = p.getBoundingBox().inflate(0.2, -0.1, 0.2);
+        return !p.level().noCollision(p, box);
     }
 
     /** 월드 렌더 후반(파티클까지) = GUI 그려지기 전. 스포이드 모드면 커서 밑 픽셀 색을 읽어 갱신. */
@@ -89,10 +101,10 @@ public class ChameleonInput {
         }
     }
 
-    /** 게임 중에는 머리 위 닉네임을 숨긴다(숨는 사람 위치 노출 방지). */
+    /** 숨기/찾기 페이즈엔 닉네임을 숨긴다(위치 노출 방지). 정답 공개 페이즈엔 보여준다. */
     @SubscribeEvent
     public static void onNameTag(RenderNameTagEvent event) {
-        if (CamoEditState.gameActive && event.getEntity() instanceof Player) {
+        if (CamoEditState.hideNames && event.getEntity() instanceof Player) {
             event.setResult(Event.Result.DENY);
         }
     }
