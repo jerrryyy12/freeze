@@ -17,13 +17,18 @@ import org.lwjgl.glfw.GLFW;
 @Mod.EventBusSubscriber(modid = ChameleonMod.MOD_ID, bus = Mod.EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
 public class ChameleonClient {
 
-    /** 위장 색칠 화면 열기 (기본 G, 설정 > 조작에서 변경 가능). */
+    /** 위장 색칠 화면 열기 (기본 G). */
     public static final KeyMapping PAINT_KEY =
             new KeyMapping("key.chameleon.paint", GLFW.GLFW_KEY_G, "key.categories.chameleon");
+
+    /** 위장 / 원래 스킨 토글 (기본 H). */
+    public static final KeyMapping TOGGLE_KEY =
+            new KeyMapping("key.chameleon.toggle", GLFW.GLFW_KEY_H, "key.categories.chameleon");
 
     @SubscribeEvent
     public static void onRegisterKeys(RegisterKeyMappingsEvent event) {
         event.register(PAINT_KEY);
+        event.register(TOGGLE_KEY);
     }
 
     @SubscribeEvent
