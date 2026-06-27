@@ -2,6 +2,7 @@ package com.bang;
 
 import com.bang.game.BangGame;
 import com.bang.game.BangPlayer;
+import com.bang.game.BangTable;
 import com.bang.game.Card;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
@@ -27,6 +28,7 @@ public class BangCommands {
                 .then(Commands.literal("leave").executes(BangCommands::leave))
                 .then(Commands.literal("start").executes(BangCommands::start))
                 .then(Commands.literal("stop").executes(BangCommands::stop))
+                .then(Commands.literal("settable").executes(BangCommands::settable))
                 .then(Commands.literal("status").executes(BangCommands::status))
                 .then(Commands.literal("hand").executes(BangCommands::hand))
                 .then(Commands.literal("list").executes(BangCommands::list))
@@ -106,7 +108,18 @@ public class BangCommands {
         if (g == null) { ctx.getSource().sendFailure(Component.literal("§c진행 중인 게임이 없습니다.")); return 0; }
         if (!g.host.equals(sp.getUUID())) { ctx.getSource().sendFailure(Component.literal("§c방장만 종료할 수 있습니다.")); return 0; }
         announce(ctx.getSource().getServer(), "§6[BANG] 게임이 종료되었습니다.");
+        BangTable.clear(ctx.getSource().getServer());
         BangMod.game = null;
+        return 1;
+    }
+
+    private static int settable(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
+        ServerPlayer sp = ctx.getSource().getPlayerOrException();
+        BangTable.setAnchor(sp);
+        ctx.getSource().sendSuccess(() -> Component.literal(
+                "§a테이블 위치 등록됨 (현재 선 자리). §7게임 시작/진행 시 이 자리에 카드가 표시됩니다."), false);
+        BangGame g = BangMod.game;
+        if (g != null && g.isPlaying()) BangTable.render(ctx.getSource().getServer(), g);
         return 1;
     }
 

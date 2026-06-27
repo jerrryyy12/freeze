@@ -213,6 +213,7 @@ public class BangGame {
             if (c != null) p.hand.add(c);
         }
         broadcast(server, "§b▶ " + p.name + " 님의 턴 §7(체력 " + p.hp + "/" + p.maxHp + ", 손패 " + p.hand.size() + ")");
+        BangTable.render(server, this);
         if (p.isBot) {
             // 패시브 봇: 사람이 살아있으면 바로 턴 종료(아니면 무한 재귀 방지로 멈춤)
             if (anyHumanAlive()) endTurn(server, p);
@@ -354,6 +355,7 @@ public class BangGame {
             }
         }
         checkWin(server);
+        BangTable.render(server, this);
     }
 
     private void doBang(MinecraftServer server, BangPlayer actor, int index0, BangPlayer target) {
