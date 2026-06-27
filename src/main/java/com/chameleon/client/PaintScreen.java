@@ -22,7 +22,7 @@ public class PaintScreen extends Screen {
     private static final int SCALE = SIZE / 64;
 
     private static final String[] PART_NAMES = {"머리", "몸통", "오른팔", "왼팔", "오른다리", "왼다리"};
-    private static final int[][][] FACES = scaleFaces(new int[][][]{
+    static final int[][][] FACES = scaleFaces(new int[][][]{
             {{8, 8, 8, 8}, {24, 8, 8, 8}, {16, 8, 8, 8}, {0, 8, 8, 8}, {8, 0, 8, 8}, {16, 0, 8, 8}},
             {{20, 20, 8, 12}, {32, 20, 8, 12}, {28, 20, 4, 12}, {16, 20, 4, 12}, {20, 16, 8, 4}, {28, 16, 8, 4}},
             {{44, 20, 4, 12}, {52, 20, 4, 12}, {48, 20, 4, 12}, {40, 20, 4, 12}, {44, 16, 4, 4}, {48, 16, 4, 4}},
