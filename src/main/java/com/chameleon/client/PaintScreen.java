@@ -6,13 +6,15 @@ import com.chameleon.net.ChameleonNet;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
+import org.lwjgl.glfw.GLFW;
 
 /**
- * 위장 색칠 화면. 몸을 방향별(앞/뒤/좌/우/위/아래) 실루엣으로 보여주고 붓으로 픽셀을 칠한다.
+ * 위장 색칠 화면(2D 방향별 뷰). 몸을 앞/뒤/좌/우/위/아래 실루엣으로 보여주고 붓으로 칠한다.
  * 휠=확대/축소, 우클릭드래그=이동, 좌클릭/드래그=색칠.
- * 오른쪽 패널: 컬러 피커(채도·명도 + 색조) + 추출 팔레트.
+ * 오른쪽: 컬러 피커 + HEX 입력 + 추출 팔레트. 되돌리기(Ctrl+Z/버튼), 브러시 원형 커서.
  */
 public class PaintScreen extends Screen {
 
@@ -37,9 +39,8 @@ public class PaintScreen extends Screen {
         return base;
     }
 
-    // 컬러 피커 기하
     private static final int SV = 76, HUEW = 10, PICK_TOP = 50;
-    private float h = 0, s = 1, v = 1;
+    private float h = 0, sat = 1, val = 1;
     private int svX, svY, hueX;
 
     private int cell = 6;
@@ -49,6 +50,9 @@ public class PaintScreen extends Screen {
     private int viewX0, viewY0, viewX1, viewY1;
     private int palX, presetY;
     private boolean dirty = false;
+
+    private EditBox hexField;
+    private boolean updatingHex = false;
 
     public PaintScreen() {
         super(Component.literal("위장 색칠"));
@@ -71,7 +75,7 @@ public class PaintScreen extends Screen {
         viewY1 = this.height - 32;
         palX = this.width - paletteW + 8;
         svX = palX; svY = PICK_TOP; hueX = palX + SV + 6;
-        presetY = svY + SV + 28;
+        presetY = svY + SV + 64;
 
         int wT = FACES[2][0][2] + FACES[1][0][2] + FACES[3][0][2];
         int hT = FACES[0][0][3] + FACES[1][0][3] + FACES[4][0][3];
@@ -81,6 +85,22 @@ public class PaintScreen extends Screen {
         panX = 0; panY = 0;
         layout();
 
+        // HEX 입력창
+        hexField = new EditBox(this.font, palX, svY + SV + 24, 92, 16, Component.literal("HEX"));
+        hexField.setMaxLength(7);
+        hexField.setResponder(txt -> {
+            if (updatingHex) return;
+            Integer c = parseHex(txt);
+            if (c != null) {
+                CamoEditState.selectedColor = 0xFF000000 | c;
+                float[] f = rgbToHsv(c);
+                h = f[0]; sat = f[1]; val = f[2];
+            }
+        });
+        addRenderableWidget(hexField);
+        updateHexField();
+
+        // 뷰 전환 버튼
         int vw = Math.min(46, (this.width - paletteW - 20) / 6);
         for (int i = 0; i < 6; i++) {
             final int vi = i;
@@ -88,8 +108,9 @@ public class PaintScreen extends Screen {
                     .bounds(10 + i * (vw + 2), 24, vw, 20).build());
         }
 
+        // 컨트롤 버튼 (하단)
         int by = this.height - 26;
-        int bw = Math.min(92, (this.width - 20) / 5);
+        int bw = Math.min(80, (this.width - 20) / 6);
         int x = 10;
         addRenderableWidget(Button.builder(Component.literal("브러시 -"),
                 b -> CamoEditState.brush = Math.max(0, CamoEditState.brush - 1)).bounds(x, by, bw, 20).build());
@@ -97,16 +118,17 @@ public class PaintScreen extends Screen {
         addRenderableWidget(Button.builder(Component.literal("브러시 +"),
                 b -> CamoEditState.brush = Math.min(12, CamoEditState.brush + 1)).bounds(x, by, bw, 20).build());
         x += bw + 2;
-        addRenderableWidget(Button.builder(Component.literal("스포이드(주변색)"), b -> armEyedropper())
-                .bounds(x, by, bw, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("되돌리기"), b -> doUndo()).bounds(x, by, bw, 20).build());
+        x += bw + 2;
+        addRenderableWidget(Button.builder(Component.literal("스포이드"), b -> armEyedropper()).bounds(x, by, bw, 20).build());
         x += bw + 2;
         addRenderableWidget(Button.builder(Component.literal("전체 지우기"), b -> {
+            CamoEditState.pushUndo();
             CamoEditState.resetCanvas();
             dirty = true;
         }).bounds(x, by, bw, 20).build());
         x += bw + 2;
-        addRenderableWidget(Button.builder(Component.literal("완료"), b -> this.onClose())
-                .bounds(x, by, bw, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("완료"), b -> this.onClose()).bounds(x, by, bw, 20).build());
     }
 
     private void layout() {
@@ -133,7 +155,7 @@ public class PaintScreen extends Screen {
         layout();
         int view = CamoEditState.view;
 
-        g.drawCenteredString(this.font, "위장 색칠 — [" + VIEW_NAMES[view] + "면]  (휠=확대, 우클릭드래그=이동)",
+        g.drawCenteredString(this.font, "위장 색칠(2D) — [" + VIEW_NAMES[view] + "면]  (휠=확대, 우클릭=이동)",
                 this.width / 2, 8, 0xFFFFFFFF);
 
         g.enableScissor(viewX0, viewY0, viewX1, viewY1);
@@ -158,42 +180,55 @@ public class PaintScreen extends Screen {
 
         renderPicker(g);
         renderPresets(g);
+
+        // 브러시 원형 커서
+        if (mouseX >= viewX0 && mouseX <= viewX1 && mouseY >= viewY0 && mouseY <= viewY1) {
+            int r = (int) ((CamoEditState.brush + 0.5f) * cell);
+            drawCircle(g, mouseX, mouseY, r, 0xFF000000);
+            drawCircle(g, mouseX, mouseY, r - 1, 0xFFFFFFFF);
+        }
+    }
+
+    private void drawCircle(GuiGraphics g, int cxp, int cyp, int r, int color) {
+        if (r < 1) return;
+        int seg = Math.max(20, r * 3);
+        for (int i = 0; i < seg; i++) {
+            double a = i * 2 * Math.PI / seg;
+            int x = cxp + (int) Math.round(r * Math.cos(a));
+            int y = cyp + (int) Math.round(r * Math.sin(a));
+            g.fill(x, y, x + 1, y + 1, color);
+        }
     }
 
     private void renderPicker(GuiGraphics g) {
-        // 채도(x)·명도(y) 사각형
         for (int yy = 0; yy < SV; yy += 4)
             for (int xx = 0; xx < SV; xx += 4)
                 g.fill(svX + xx, svY + yy, svX + xx + 4, svY + yy + 4, hsv(h, xx / (float) SV, 1f - yy / (float) SV));
-        // SV 마커
-        int mxp = svX + (int) (s * SV), myp = svY + (int) ((1 - v) * SV);
+        int mxp = svX + (int) (sat * SV), myp = svY + (int) ((1 - val) * SV);
         g.fill(mxp - 2, myp - 2, mxp + 3, myp + 3, 0xFFFFFFFF);
         g.fill(mxp - 1, myp - 1, mxp + 2, myp + 2, 0xFF000000);
 
-        // 색조 바
         for (int yy = 0; yy < SV; yy += 2)
             g.fill(hueX, svY + yy, hueX + HUEW, svY + yy + 2, hsv(yy / (float) SV, 1f, 1f));
         int hy = svY + (int) (h * SV);
         g.fill(hueX - 1, hy - 1, hueX + HUEW + 1, hy + 1, 0xFFFFFFFF);
 
-        // 미리보기 + HEX
-        int prevX = palX, prevY = svY + SV + 6;
-        g.fill(prevX, prevY, prevX + 24, prevY + 14, CamoEditState.selectedColor);
-        g.drawString(this.font, "#" + String.format("%06X", CamoEditState.selectedColor & 0xFFFFFF),
-                prevX + 30, prevY + 3, 0xFFFFFFFF);
+        int prevY = svY + SV + 6;
+        g.fill(palX, prevY, palX + 22, prevY + 14, CamoEditState.selectedColor);
+        g.drawString(this.font, "선택색", palX + 28, prevY + 3, 0xFFFFFFFF);
     }
 
     private void renderPresets(GuiGraphics g) {
         g.drawString(this.font, "추출색", palX, presetY - 11, 0xFFFFFFFF);
         for (int i = 0; i < CamoEditState.palette.size(); i++) {
             int x = palX + (i % 8) * 16, y = presetY + (i / 8) * 16;
-            if (y > this.height - 56) break;
+            if (y > this.height - 50) break;
             int col = CamoEditState.palette.get(i);
             if (col == CamoEditState.selectedColor) g.fill(x - 1, y - 1, x + 15, y + 15, 0xFFFFFF00);
             g.fill(x, y, x + 14, y + 14, col);
         }
-        g.drawString(this.font, "브러시: " + (CamoEditState.brush * 2 + 1) + "칸   (H=위장/스킨)",
-                palX, this.height - 44, 0xFFAAAAAA);
+        g.drawString(this.font, "브러시 " + (CamoEditState.brush * 2 + 1) + "칸  ·  H=위장/스킨",
+                palX, this.height - 42, 0xFFAAAAAA);
     }
 
     private void armEyedropper() {
@@ -204,21 +239,26 @@ public class PaintScreen extends Screen {
         this.onClose();
     }
 
+    private void doUndo() {
+        if (CamoEditState.undo()) sync();
+    }
+
     private boolean inView(double mx, double my) {
         return mx >= viewX0 && mx <= viewX1 && my >= viewY0 && my <= viewY1;
     }
 
-    /** 컬러 피커 클릭/드래그 처리. */
     private boolean pickerAt(double mx, double my) {
         if (mx >= svX && mx < svX + SV && my >= svY && my < svY + SV) {
-            s = clamp01((mx - svX) / SV);
-            v = clamp01(1 - (my - svY) / SV);
-            CamoEditState.selectedColor = hsv(h, s, v);
+            sat = clamp01((mx - svX) / SV);
+            val = clamp01(1 - (my - svY) / SV);
+            CamoEditState.selectedColor = hsv(h, sat, val);
+            updateHexField();
             return true;
         }
         if (mx >= hueX && mx < hueX + HUEW && my >= svY && my < svY + SV) {
             h = clamp01((my - svY) / SV);
-            CamoEditState.selectedColor = hsv(h, s, v);
+            CamoEditState.selectedColor = hsv(h, sat, val);
+            updateHexField();
             return true;
         }
         return false;
@@ -228,7 +268,6 @@ public class PaintScreen extends Screen {
     public boolean mouseClicked(double mx, double my, int button) {
         if (super.mouseClicked(mx, my, button)) return true;
         if (button == 0 && pickerAt(mx, my)) return true;
-        // 추출색 선택
         for (int i = 0; i < CamoEditState.palette.size(); i++) {
             int x = palX + (i % 8) * 16, y = presetY + (i / 8) * 16;
             if (mx >= x && mx < x + 14 && my >= y && my < y + 14) {
@@ -236,7 +275,10 @@ public class PaintScreen extends Screen {
                 return true;
             }
         }
-        if (button == 0 && inView(mx, my)) return paintAt(mx, my);
+        if (button == 0 && inView(mx, my)) {
+            CamoEditState.pushUndo();
+            return paintAt(mx, my);
+        }
         return false;
     }
 
@@ -255,6 +297,16 @@ public class PaintScreen extends Screen {
             return true;
         }
         return super.mouseScrolled(mx, my, scrollX, scrollY);
+    }
+
+    @Override
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (hexField != null && hexField.isFocused()) return super.keyPressed(keyCode, scanCode, modifiers);
+        if (keyCode == GLFW.GLFW_KEY_Z && (modifiers & GLFW.GLFW_MOD_CONTROL) != 0) {
+            doUndo();
+            return true;
+        }
+        return super.keyPressed(keyCode, scanCode, modifiers);
     }
 
     @Override
@@ -305,12 +357,31 @@ public class PaintScreen extends Screen {
         return false;
     }
 
-    // ---- 색 변환 ----
+    // ---- 색 변환/유틸 ----
 
     private void selectColor(int argb) {
         CamoEditState.selectedColor = 0xFF000000 | (argb & 0xFFFFFF);
         float[] f = rgbToHsv(argb);
-        h = f[0]; s = f[1]; v = f[2];
+        h = f[0]; sat = f[1]; val = f[2];
+        updateHexField();
+    }
+
+    private void updateHexField() {
+        if (hexField == null) return;
+        updatingHex = true;
+        hexField.setValue(String.format("%06X", CamoEditState.selectedColor & 0xFFFFFF));
+        updatingHex = false;
+    }
+
+    private static Integer parseHex(String s) {
+        s = s.trim();
+        if (s.startsWith("#")) s = s.substring(1);
+        if (s.length() != 6) return null;
+        try {
+            return Integer.parseInt(s, 16);
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     private static float clamp01(double x) {
@@ -338,14 +409,14 @@ public class PaintScreen extends Screen {
         float max = Math.max(r, Math.max(g, b)), min = Math.min(r, Math.min(g, b));
         float v = max, d = max - min;
         float s = max == 0 ? 0 : d / max;
-        float h = 0;
+        float hue = 0;
         if (d != 0) {
-            if (max == r) h = ((g - b) / d) % 6;
-            else if (max == g) h = (b - r) / d + 2;
-            else h = (r - g) / d + 4;
-            h /= 6;
-            if (h < 0) h += 1;
+            if (max == r) hue = ((g - b) / d) % 6;
+            else if (max == g) hue = (b - r) / d + 2;
+            else hue = (r - g) / d + 4;
+            hue /= 6;
+            if (hue < 0) hue += 1;
         }
-        return new float[]{h, s, v};
+        return new float[]{hue, s, v};
     }
 }

@@ -7,7 +7,9 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.MapColor;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -38,6 +40,21 @@ public class CamoEditState {
             {16, 48, 16, 16}, // 왼다리
             {32, 48, 16, 16}, // 왼팔
     };
+
+    /** 되돌리기 스냅샷 스택. */
+    public static final Deque<int[]> undoStack = new ArrayDeque<>();
+
+    public static void pushUndo() {
+        if (pixels == null) return;
+        undoStack.push(pixels.clone());
+        while (undoStack.size() > 20) undoStack.removeLast();
+    }
+
+    public static boolean undo() {
+        if (undoStack.isEmpty()) return false;
+        pixels = undoStack.pop();
+        return true;
+    }
 
     public static void ensureInit() {
         if (pixels == null) {
