@@ -6,8 +6,10 @@ import com.chameleon.net.ChameleonNet;
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.platform.GlStateManager;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.RenderLevelStageEvent;
 import net.minecraftforge.client.event.RenderNameTagEvent;
@@ -32,10 +34,16 @@ public class ChameleonInput {
     private static boolean sampleRequested = false; // 휠클릭됨 → 다음 렌더에서 픽셀 추출
     private static boolean pendingReopen = false;    // 추출 후 색칠 화면 다시 열기
 
+    // 벽타기 설정 (상시 가능)
+    private static final double CLIMB_UP = 0.25;     // 점프키로 벽 오르는 속도(중력 상쇄 포함)
+    private static final double CLING_FACTOR = 0.35; // 벽에 붙어 천천히 미끄러짐
+
     @SubscribeEvent
     public static void onClientTick(TickEvent.ClientTickEvent event) {
         if (event.phase != TickEvent.Phase.START) return;
         Minecraft mc = Minecraft.getInstance();
+
+        handleWallClimb(mc);
 
         if (pendingReopen && mc.screen == null) {
             pendingReopen = false;
@@ -60,6 +68,29 @@ public class ChameleonInput {
         }
         while (ChameleonClient.TOGGLE_KEY.consumeClick()) {
             toggleCamo(mc);
+        }
+    }
+
+    /**
+     * 벽타기 (상시 가능, 게임 중이 아니어도 작동).
+     * 벽에 밀착(W로 밀고 있을 때)한 상태에서 점프키 → 벽을 타고 올라간다.
+     * 점프키를 안 누르면 벽에 붙어 천천히 미끄러진다.
+     */
+    private static void handleWallClimb(Minecraft mc) {
+        LocalPlayer p = mc.player;
+        if (p == null || mc.screen != null) return;
+        if (p.isSpectator() || p.isPassenger() || p.isFallFlying()) return;
+        if (p.getAbilities().flying) return;
+        if (p.onClimbable() || p.isInWater() || p.isInLava()) return; // 사다리/물은 기존 동작
+        if (!p.horizontalCollision) return; // 벽에 밀착(밀고 있을 때)만
+
+        Vec3 m = p.getDeltaMovement();
+        if (mc.options.keyJump.isDown()) {
+            p.setDeltaMovement(m.x, CLIMB_UP, m.z); // 벽 오르기
+            p.resetFallDistance();
+        } else if (m.y < 0) {
+            p.setDeltaMovement(m.x, m.y * CLING_FACTOR, m.z); // 클링(천천히 미끄러짐)
+            p.resetFallDistance();
         }
     }
 

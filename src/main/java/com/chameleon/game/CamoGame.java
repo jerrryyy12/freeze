@@ -89,7 +89,12 @@ public class CamoGame {
 
     public static void stop(MinecraftServer server) {
         for (ServerPlayer p : server.getPlayerList().getPlayers()) {
-            restore(server, p);
+            try {
+                restore(server, p);
+            } catch (Exception e) {
+                // 한 명 복구 실패가 서버 틱 전체를 죽이지 않도록 방어
+                com.chameleon.ChameleonMod.LOGGER.error("플레이어 복구 실패: {}", p.getScoreboardName(), e);
+            }
         }
         roles.clear();
         origModes.clear();
@@ -230,10 +235,12 @@ public class CamoGame {
         for (int i = 0; i < inv.getContainerSize(); i++) {
             if (inv.getItem(i).getItem() == ChameleonItems.GUN.get()) inv.setItem(i, ItemStack.EMPTY);
         }
-        // 팀 제거
+        // 팀 제거 (그 팀에 실제 속한 경우에만 — 아니면 IllegalStateException으로 서버가 죽음)
         ServerScoreboard sb = server.getScoreboard();
         PlayerTeam t = sb.getPlayerTeam(SEEKER_TEAM);
-        if (t != null) sb.removePlayerFromTeam(p.getScoreboardName(), t);
+        if (t != null && t.getPlayers().contains(p.getScoreboardName())) {
+            sb.removePlayerFromTeam(p.getScoreboardName(), t);
+        }
         // 게임모드 복구(탈락해서 관전이 된 경우 등)
         GameType orig = origModes.get(p.getUUID());
         if (orig != null) p.setGameMode(orig);
