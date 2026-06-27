@@ -125,6 +125,16 @@ public class Paint3DScreen extends Screen {
     }
 
     @Override
+    public void renderBackground(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
+        // 어둡게/블러 없이 뒤의 실제 월드가 보이게 → 색 비교 가능. 도구 영역에만 반투명 배경.
+        int panel = 0xCC101010;
+        int paletteW = 8 * 16 + 16;
+        g.fill(0, 0, this.width, 24, panel);                                    // 상단(제목)
+        g.fill(this.width - paletteW, 24, this.width, this.height - 30, panel); // 우측 도구열
+        g.fill(0, this.height - 30, this.width, this.height, panel);            // 하단 버튼바
+    }
+
+    @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         super.render(g, mouseX, mouseY, partialTick);
         g.drawCenteredString(this.font, "위장 색칠(3D) — 우클릭=회전, 휠클릭=이동, 휠=확대, 좌클릭=색칠",

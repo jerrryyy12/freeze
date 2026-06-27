@@ -154,6 +154,17 @@ public class PaintScreen extends Screen {
     }
 
     @Override
+    public void renderBackground(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
+        // 어둡게/블러 처리하지 않는다 → 뒤의 실제 월드(주변 블록)가 원래 색 그대로 보여 색 비교 가능.
+        // 가독성을 위해 도구 패널 영역에만 반투명 배경을 깐다(가운데 색칠 영역은 비워둬 월드가 비침).
+        int panel = 0xCC101010;
+        int paletteW = 8 * 16 + 16;
+        g.fill(0, 0, this.width, 46, panel);                                    // 상단(제목/뷰 버튼)
+        g.fill(this.width - paletteW, 46, this.width, this.height - 30, panel); // 우측 도구열
+        g.fill(0, this.height - 30, this.width, this.height, panel);            // 하단 버튼바
+    }
+
+    @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         super.render(g, mouseX, mouseY, partialTick);
         layout();
