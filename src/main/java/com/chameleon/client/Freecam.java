@@ -87,6 +87,10 @@ public final class Freecam {
         if (mc.options.keyJump.isDown())  d = d.add(0, 1, 0);                       // 스페이스 = 위
         if (mc.options.keyShift.isDown() || mc.options.keyDrop.isDown()) d = d.add(0, -1, 0); // 시프트/Q = 아래
         if (d.lengthSqr() > 1.0e-6) pos = pos.add(d.normalize().scale(speed));
+
+        // 몸은 자유 시점 동안 그 자리에 완전히 고정(중력/관성으로 떨어지지 않게)
+        p.setDeltaMovement(0, 0, 0);
+        p.resetFallDistance();
     }
 
     /**
