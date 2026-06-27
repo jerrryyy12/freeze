@@ -4,12 +4,16 @@ import com.chameleon.game.CamoGame;
 import com.chameleon.net.ChameleonNet;
 import com.mojang.logging.LogUtils;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.InteractionHand;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.entity.player.PlayerEvent;
+import net.minecraftforge.event.entity.player.PlayerInteractEvent;
+import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import org.slf4j.Logger;
 
 /**
@@ -24,6 +28,8 @@ public class ChameleonMod {
     public static final Logger LOGGER = LogUtils.getLogger();
 
     public ChameleonMod() {
+        IEventBus modBus = FMLJavaModLoadingContext.get().getModEventBus();
+        ChameleonItems.register(modBus);
         ChameleonNet.register();
         MinecraftForge.EVENT_BUS.register(this);
         // 클라이언트 렌더링 등록은 client.ChameleonClient(@EventBusSubscriber, Dist.CLIENT)가 담당.
@@ -47,6 +53,16 @@ public class ChameleonMod {
         if (event.getEntity() instanceof ServerPlayer sp) {
             CamoStore.onLogin(sp);
             ChameleonNet.sendGameState(sp, CamoGame.isActive(), CamoGame.secondsLeft());
+        }
+    }
+
+    /** 술래가 총(샷건)을 우클릭 → 발사. (서버 측에서만 처리) */
+    @SubscribeEvent
+    public void onGunUse(PlayerInteractEvent.RightClickItem event) {
+        if (event.getHand() != InteractionHand.MAIN_HAND) return;
+        if (event.getItemStack().getItem() != ChameleonItems.GUN.get()) return;
+        if (event.getEntity() instanceof ServerPlayer sp) {
+            CamoGame.fireGun(sp);
         }
     }
 }
