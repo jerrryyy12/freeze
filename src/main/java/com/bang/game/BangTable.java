@@ -1,7 +1,11 @@
 package com.bang.game;
 
 import com.bang.BangItems;
-import com.mojang.math.Transformation;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.DoubleTag;
+import net.minecraft.nbt.FloatTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.Tag;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -11,15 +15,14 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
-import org.joml.Quaternionf;
-import org.joml.Vector3f;
 
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 전용 맵의 테이블 위에 공용 카드(뽑는 더미·버린 더미·좌석별 장비)를
+ * 전용 맵 테이블 위에 공용 카드(뽑는 더미·버린 더미·좌석별 장비)를
  * 디스플레이 엔티티(눕힌 카드)로 표시한다.
+ * 디스플레이 엔티티의 setter는 public이 아니라 NBT(load)로 설정한다.
  */
 public class BangTable {
 
@@ -31,10 +34,11 @@ public class BangTable {
 
     private static final float CARD_SCALE = 0.5f;
     private static final double SEAT_RADIUS = 2.0;
+    // X축 -90도 회전 쿼터니언 (카드를 평평하게 눕힘)
+    private static final float[] FLAT_ROT = {-0.70710677f, 0f, 0f, 0.70710677f};
 
     public static boolean isSet() { return set; }
 
-    /** 플레이어가 선 위치를 테이블 중심으로 등록 (테이블 윗면 위에서 실행 권장) */
     public static void setAnchor(ServerPlayer p) {
         dim = p.serverLevel().dimension();
         ax = p.getX();
@@ -50,7 +54,6 @@ public class BangTable {
         spawned.clear();
     }
 
-    /** 현재 게임 상태를 테이블에 다시 그린다. */
     public static void render(MinecraftServer server, BangGame game) {
         if (!set || dim == null) return;
         ServerLevel level = server.getLevel(dim);
@@ -58,12 +61,10 @@ public class BangTable {
         clear(server);
         if (game == null || !game.isPlaying()) return;
 
-        // 뽑는 더미(뒷면) / 버린 더미(맨 위)
         spawnCard(level, BangItems.CARD_BACK.get(), ax - 0.6, ay, az);
         Card top = game.deck() != null ? game.deck().peekTopDiscard() : null;
         if (top != null) spawnCard(level, BangItems.itemFor(top.type), ax + 0.6, ay, az);
 
-        // 좌석별 장비를 원형으로 배치
         List<BangPlayer> seats = game.seating();
         int n = seats.size();
         for (int i = 0; i < n; i++) {
@@ -82,16 +83,36 @@ public class BangTable {
     private static void spawnCard(ServerLevel level, Item item, double x, double y, double z) {
         if (item == null) return;
         Display.ItemDisplay d = new Display.ItemDisplay(EntityType.ITEM_DISPLAY, level);
-        d.setPos(x, y, z);
-        d.setItemStack(new ItemStack(item));
-        // 카드를 평평하게 눕힘 (X축 -90도) + 축소
-        Quaternionf flat = new Quaternionf().rotationX((float) (-Math.PI / 2));
-        d.setTransformation(new Transformation(
-                new Vector3f(0f, 0f, 0f), flat,
-                new Vector3f(CARD_SCALE, CARD_SCALE, CARD_SCALE), new Quaternionf()));
-        d.setBillboardConstraints(Display.BillboardConstraints.FIXED);
-        d.setViewRange(2.0f);
+
+        CompoundTag tag = new CompoundTag();
+        // 위치
+        ListTag pos = new ListTag();
+        pos.add(DoubleTag.valueOf(x));
+        pos.add(DoubleTag.valueOf(y));
+        pos.add(DoubleTag.valueOf(z));
+        tag.put("Pos", pos);
+        // 아이템
+        Tag itemTag = new ItemStack(item).save(level.registryAccess());
+        tag.put("item", itemTag);
+        tag.putString("item_display", "fixed");
+        // 변형: 평평하게 눕히고 축소
+        CompoundTag tr = new CompoundTag();
+        tr.put("translation", floatList(0f, 0f, 0f));
+        tr.put("scale", floatList(CARD_SCALE, CARD_SCALE, CARD_SCALE));
+        tr.put("left_rotation", floatList(FLAT_ROT));
+        tr.put("right_rotation", floatList(0f, 0f, 0f, 1f));
+        tag.put("transformation", tr);
+        tag.putString("billboard", "fixed");
+        tag.putFloat("view_range", 2.0f);
+
+        d.load(tag);
         level.addFreshEntity(d);
         spawned.add(d);
+    }
+
+    private static ListTag floatList(float... vals) {
+        ListTag l = new ListTag();
+        for (float v : vals) l.add(FloatTag.valueOf(v));
+        return l;
     }
 }
