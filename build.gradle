@@ -40,5 +40,4 @@ jar {
             'Implementation-Vendor'   : 'freeze'
         ])
     }
-    finalizedBy 'reobfJar'
 }
