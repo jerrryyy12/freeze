@@ -38,6 +38,7 @@ public class Paint3DScreen extends Screen {
     private float yaw = 0.6f, pitch = -0.2f;
     private float scale = 6f;
     private int cx, cy; // 3D 뷰 중심
+    private int panX = 0, panY = 0; // 휠클릭 드래그 이동
     private int viewX0, viewY0, viewX1, viewY1;
     private int palX, presetY;
     private boolean dirty = false;
@@ -101,7 +102,7 @@ public class Paint3DScreen extends Screen {
 
     private Matrix4f viewMatrix() {
         Matrix4f m = new Matrix4f();
-        m.translate(cx, cy, 0);
+        m.translate(cx + panX, cy + panY, 0);
         m.scale(scale, -scale, scale);
         m.rotateX(pitch);
         m.rotateY(yaw);
@@ -126,7 +127,7 @@ public class Paint3DScreen extends Screen {
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         super.render(g, mouseX, mouseY, partialTick);
-        g.drawCenteredString(this.font, "위장 색칠(3D) — 우클릭=회전, 휠=확대, 좌클릭=색칠",
+        g.drawCenteredString(this.font, "위장 색칠(3D) — 우클릭=회전, 휠클릭=이동, 휠=확대, 좌클릭=색칠",
                 this.width / 2, 8, 0xFFFFFFFF);
 
         Matrix4f M = viewMatrix();
@@ -145,7 +146,7 @@ public class Paint3DScreen extends Screen {
 
         g.enableScissor(viewX0, viewY0, viewX1, viewY1);
         g.pose().pushPose();
-        g.pose().translate(cx, cy, 0);
+        g.pose().translate(cx + panX, cy + panY, 0);
         g.pose().scale(scale, -scale, scale);
         g.pose().mulPose(new Quaternionf().rotationX(pitch));
         g.pose().mulPose(new Quaternionf().rotationY(yaw));
@@ -249,6 +250,7 @@ public class Paint3DScreen extends Screen {
     @Override
     public boolean mouseDragged(double mx, double my, int button, double dx, double dy) {
         if (button == 1) { yaw += (float) dx * 0.01f; pitch += (float) dy * 0.01f; return true; }
+        if (button == 2) { panX += (int) dx; panY += (int) dy; return true; } // 휠클릭 = 이동
         if (button == 0 && inView(mx, my) && paintAt(mx, my)) return true;
         return super.mouseDragged(mx, my, button, dx, dy);
     }
