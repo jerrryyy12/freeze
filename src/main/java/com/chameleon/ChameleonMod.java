@@ -52,7 +52,7 @@ public class ChameleonMod {
     public void onLogin(PlayerEvent.PlayerLoggedInEvent event) {
         if (event.getEntity() instanceof ServerPlayer sp) {
             CamoStore.onLogin(sp);
-            ChameleonNet.sendGameState(sp, CamoGame.phaseId(), CamoGame.secondsLeft());
+            ChameleonNet.sendGameState(sp, CamoGame.phaseId(), CamoGame.secondsLeft(), CamoGame.roleIdOf(sp));
         }
     }
 

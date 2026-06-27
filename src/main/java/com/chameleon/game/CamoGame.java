@@ -83,6 +83,18 @@ public class CamoGame {
     public static Role roleOf(UUID id) { return roles.get(id); }
     public static int secondsLeft() { return phaseTicks / 20; }
 
+    /** 역할 id: 0=없음/관전, 1=숨는사람, 2=술래. */
+    public static int roleIdOf(ServerPlayer p) {
+        Role r = roles.get(p.getUUID());
+        return r == Role.SEEKER ? 2 : r == Role.HIDER ? 1 : 0;
+    }
+
+    /** 게임 상태를 각 플레이어에게(역할 포함) 전송. */
+    private static void broadcastState(MinecraftServer server, int seconds) {
+        for (ServerPlayer p : server.getPlayerList().getPlayers())
+            ChameleonNet.sendGameState(p, phaseId(), seconds, roleIdOf(p));
+    }
+
     public static int[] start(MinecraftServer server, int seekSeconds) {
         int hiders = 0, seekers = 0;
         seekDurationTicks = seekSeconds * 20;
@@ -104,7 +116,7 @@ public class CamoGame {
         hiderCount = hiders;
         phase = Phase.HIDE;
         phaseTicks = hideSeconds * 20;
-        ChameleonNet.broadcastGameState(phaseId(), hideSeconds);
+        broadcastState(server, hideSeconds);
         announce(server, Component.literal("§b숨는 시간!"),
                 Component.literal(hideSeconds + "초 안에 숨으세요"));
         return new int[]{hiders, seekers};
@@ -127,7 +139,7 @@ public class CamoGame {
         phase = Phase.LOBBY;
         phaseTicks = 0;
         hiderCount = 0;
-        ChameleonNet.broadcastGameState(phaseId(), 0);
+        broadcastState(server, 0);
     }
 
     public static void tick(MinecraftServer server) {
@@ -161,7 +173,7 @@ public class CamoGame {
         }
         phase = Phase.SEEK;
         phaseTicks = seekDurationTicks;
-        ChameleonNet.broadcastGameState(phaseId(), seekDurationTicks / 20);
+        broadcastState(server, seekDurationTicks / 20);
         announce(server, Component.literal("§c술래 출발!"), Component.literal("숨은 사람을 찾아라"));
     }
 
@@ -179,7 +191,7 @@ public class CamoGame {
         }
         phase = Phase.REVEAL;
         phaseTicks = revealSeconds * 20;
-        ChameleonNet.broadcastGameState(phaseId(), revealSeconds);
+        broadcastState(server, revealSeconds);
     }
 
     /**

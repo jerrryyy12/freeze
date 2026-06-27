@@ -45,18 +45,19 @@ public class ChameleonInput {
 
         handleWallClimb(mc);
 
-        // 자유 시점 ON/OFF (4/5) — 게임 중(숨기/찾기)엔 금지, 로비·정답공개에서만 허용
+        // 자유 시점 ON/OFF (4/5) — 술래는 게임 중(숨기/찾기) 금지(반칙 방지). 숨는 사람은 허용.
         boolean inPlay = CamoEditState.phase == 1 || CamoEditState.phase == 2;
+        boolean seekerBlocked = inPlay && CamoEditState.localRole == 2;
         while (ChameleonClient.FREECAM_ON.consumeClick()) {
-            if (inPlay) {
+            if (seekerBlocked) {
                 if (mc.player != null)
-                    mc.player.displayClientMessage(Component.literal("§7게임 중엔 자유 시점을 쓸 수 없어요"), true);
+                    mc.player.displayClientMessage(Component.literal("§7술래는 게임 중 자유 시점을 쓸 수 없어요"), true);
             } else {
                 Freecam.enable();
             }
         }
         while (ChameleonClient.FREECAM_OFF.consumeClick()) Freecam.disable();
-        if (inPlay && Freecam.isActive()) Freecam.disable(); // 게임 시작 시 강제 해제
+        if (seekerBlocked && Freecam.isActive()) Freecam.disable(); // 술래는 게임 시작 시 강제 해제
         Freecam.tick(mc);
         if (Freecam.isActive()) {
             // 자유 시점 중에는 Q(버리기)가 게임으로 새지 않게 소비 — 카메라 아래 이동 전용
