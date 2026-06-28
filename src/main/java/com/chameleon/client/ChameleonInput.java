@@ -165,9 +165,12 @@ public class ChameleonInput {
         if (Minecraft.getInstance().screen instanceof EyedropperScreen es) {
             es.updateHover(readPixelAt(es.cursorX(), es.cursorY()));
         }
-        // 직접 칠하기: 커서 정확 역투영을 위해 이번 프레임의 투영·모델뷰 행렬 캡처
+        // 직접 칠하기: 커서 정확 역투영을 위해 이번 프레임의 모델뷰 행렬 캡처
+        // (이 Forge 버전의 getPoseStack()은 Matrix4f(모델뷰)를 반환 — deprecated이나 동작)
         if (Minecraft.getInstance().screen instanceof FreecamBrushScreen) {
-            FreecamBrushScreen.captureView(event.getPoseStack().last().pose());
+            @SuppressWarnings("removal")
+            org.joml.Matrix4f mv = event.getPoseStack();
+            FreecamBrushScreen.captureView(mv);
         }
     }
 
