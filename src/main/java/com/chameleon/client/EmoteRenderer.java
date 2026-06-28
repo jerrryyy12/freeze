@@ -26,7 +26,7 @@ public class EmoteRenderer {
 
     @SubscribeEvent
     public static void onRenderPlayerPre(RenderPlayerEvent.Pre event) {
-        AbstractClientPlayer player = event.getEntity();
+        if (!(event.getEntity() instanceof AbstractClientPlayer player)) return;
         int emote = EmoteState.emoteOf(player.getUUID());
         if (emote < 0) return;
         event.setCanceled(true);
