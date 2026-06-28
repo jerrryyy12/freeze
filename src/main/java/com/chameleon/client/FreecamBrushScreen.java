@@ -60,11 +60,17 @@ public class FreecamBrushScreen extends Screen {
         mc.setScreen(new FreecamBrushScreen());
     }
 
-    /** 월드 렌더 단계에서 호출: 이번 프레임 투영·모델뷰로 역투영 행렬과 카메라 위치를 저장. */
-    public static void captureView(Matrix4f modelView) {
+    /**
+     * 월드 렌더 단계에서 호출: 실제 투영행렬 + 자유 카메라 각도로 뷰행렬을 만들어
+     * 역투영(클립→카메라상대월드) 행렬과 카메라 위치를 저장한다.
+     * 뷰행렬은 마인크래프트 카메라와 동일하게 RotX(pitch)·RotY(yaw+180).
+     */
+    public static void captureView() {
         Matrix4f proj = RenderSystem.getProjectionMatrix();
-        Matrix4f combined = new Matrix4f(proj).mul(modelView);
-        invMatrix = combined.invert(new Matrix4f());
+        Matrix4f view = new Matrix4f()
+                .rotateX((float) Math.toRadians(Freecam.camPitch()))
+                .rotateY((float) Math.toRadians(Freecam.camYaw() + 180.0));
+        invMatrix = new Matrix4f(proj).mul(view).invert(new Matrix4f());
         camPos = Minecraft.getInstance().gameRenderer.getMainCamera().getPosition();
     }
 

@@ -1,7 +1,9 @@
 package com.chameleon.client;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.Camera;
 import net.minecraft.client.CameraType;
+import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.network.chat.Component;
@@ -85,19 +87,25 @@ public final class Freecam {
             mc.options.setCameraType(CameraType.THIRD_PERSON_BACK);
 
         posOld = pos;
-        double speed = MOVE_SPEED * (mc.options.keySprint.isDown() ? SPRINT_MULT : 1.0);
-        double yr = Math.toRadians(camYaw), pr = Math.toRadians(camPitch), cp = Math.cos(pr);
-        Vec3 look = new Vec3(-Math.sin(yr) * cp, -Math.sin(pr), Math.cos(yr) * cp); // 카메라가 보는 방향
-        Vec3 left = new Vec3(Math.cos(yr), 0, Math.sin(yr));                          // 왼쪽(A)
+        // 브러시 화면이 열려 있어도 WASD로 카메라 이동 가능(화면이 키를 막으니 원시 키 상태를 읽음).
+        // 다른 화면(채팅·일시정지 등)일 땐 이동하지 않는다.
+        boolean brush = mc.screen instanceof FreecamBrushScreen;
+        if (mc.screen == null || brush) {
+            double speed = MOVE_SPEED * (held(mc, mc.options.keySprint, brush) ? SPRINT_MULT : 1.0);
+            double yr = Math.toRadians(camYaw), pr = Math.toRadians(camPitch), cp = Math.cos(pr);
+            Vec3 look = new Vec3(-Math.sin(yr) * cp, -Math.sin(pr), Math.cos(yr) * cp); // 카메라가 보는 방향
+            Vec3 left = new Vec3(Math.cos(yr), 0, Math.sin(yr));                          // 왼쪽(A)
 
-        Vec3 d = Vec3.ZERO;
-        if (mc.options.keyUp.isDown())    d = d.add(look);
-        if (mc.options.keyDown.isDown())  d = d.subtract(look);
-        if (mc.options.keyLeft.isDown())  d = d.add(left);
-        if (mc.options.keyRight.isDown()) d = d.subtract(left);
-        if (mc.options.keyJump.isDown())  d = d.add(0, 1, 0);                       // 스페이스 = 위
-        if (mc.options.keyShift.isDown() || mc.options.keyDrop.isDown()) d = d.add(0, -1, 0); // 시프트/Q = 아래
-        if (d.lengthSqr() > 1.0e-6) pos = pos.add(d.normalize().scale(speed));
+            Vec3 d = Vec3.ZERO;
+            if (held(mc, mc.options.keyUp, brush))    d = d.add(look);
+            if (held(mc, mc.options.keyDown, brush))  d = d.subtract(look);
+            if (held(mc, mc.options.keyLeft, brush))  d = d.add(left);
+            if (held(mc, mc.options.keyRight, brush)) d = d.subtract(left);
+            if (held(mc, mc.options.keyJump, brush))  d = d.add(0, 1, 0);                       // 스페이스 = 위
+            if (held(mc, mc.options.keyShift, brush)) d = d.add(0, -1, 0);                      // 시프트 = 아래
+            if (!brush && mc.options.keyDrop.isDown()) d = d.add(0, -1, 0);                     // Q = 아래(일반 시점)
+            if (d.lengthSqr() > 1.0e-6) pos = pos.add(d.normalize().scale(speed));
+        }
 
         // 몸은 자유 시점 동안 그 자리에 완전히 고정(중력/관성으로 떨어지지 않게)
         p.setDeltaMovement(0, 0, 0);
@@ -126,6 +134,14 @@ public final class Freecam {
         event.setPitch(camPitch);
         Vec3 render = posOld.lerp(pos, event.getPartialTick());
         setCameraPosition(event.getCamera(), render);
+    }
+
+    /** 키가 눌렸는지. raw=true면(화면 열림) 윈도우의 원시 키 상태를 직접 읽는다. */
+    private static boolean held(Minecraft mc, KeyMapping k, boolean raw) {
+        if (!raw) return k.isDown();
+        InputConstants.Key key = k.getKey();
+        return key.getType() == InputConstants.Type.KEYSYM
+                && InputConstants.isKeyDown(mc.getWindow().getWindow(), key.getValue());
     }
 
     private static void freezeRotation(LocalPlayer p, float yaw, float pitch) {
