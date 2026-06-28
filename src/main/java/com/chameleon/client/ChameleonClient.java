@@ -33,12 +33,17 @@ public class ChameleonClient {
     public static final KeyMapping FREECAM_OFF =
             new KeyMapping("key.chameleon.freecam_off", GLFW.GLFW_KEY_5, "key.categories.chameleon");
 
+    /** 이모트 휠 열기 (기본 R). */
+    public static final KeyMapping EMOTE_KEY =
+            new KeyMapping("key.chameleon.emote", GLFW.GLFW_KEY_R, "key.categories.chameleon");
+
     @SubscribeEvent
     public static void onRegisterKeys(RegisterKeyMappingsEvent event) {
         event.register(PAINT_KEY);
         event.register(TOGGLE_KEY);
         event.register(FREECAM_ON);
         event.register(FREECAM_OFF);
+        event.register(EMOTE_KEY);
     }
 
     @SubscribeEvent

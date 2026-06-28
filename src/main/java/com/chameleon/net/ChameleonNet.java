@@ -41,6 +41,27 @@ public class ChameleonNet {
                 .decoder(GameStatePacket::decode)
                 .consumerMainThread(GameStatePacket::handle)
                 .add();
+
+        CHANNEL.messageBuilder(EmotePacket.class)
+                .encoder(EmotePacket::encode)
+                .decoder(EmotePacket::decode)
+                .consumerMainThread(EmotePacket::handle)
+                .add();
+    }
+
+    /** 서버 → 모든 클라이언트: 이모트 동기화 */
+    public static void broadcast(EmotePacket p) {
+        CHANNEL.send(p, PacketDistributor.ALL.noArg());
+    }
+
+    /** 서버 → 특정 플레이어: 이모트 동기화(접속 시) */
+    public static void sendTo(ServerPlayer player, EmotePacket p) {
+        CHANNEL.send(p, PacketDistributor.PLAYER.with(player));
+    }
+
+    /** 클라이언트 → 서버: 내 이모트 재생/해제 요청 */
+    public static void sendEmote(int emoteId) {
+        CHANNEL.send(new EmotePacket(null, emoteId), PacketDistributor.SERVER.noArg());
     }
 
     /** 서버 → 특정 플레이어: 게임 페이즈 + 남은 시간 + 역할 */
