@@ -34,16 +34,16 @@ import java.nio.ByteBuffer;
 @Mod.EventBusSubscriber(modid = ChameleonMod.MOD_ID, value = Dist.CLIENT)
 public class ChameleonInput {
 
-    // 벽타기 설정 (상시 가능)
+    // 벽/천장 타기 설정 (상시 가능)
     private static final double CLIMB_SPEED = 0.15;  // 벽 오르내림 속도
-    private static boolean wallStuck = false;        // 벽에 붙어있는 상태(Q로 내려오거나 땅/이탈 전까지 유지)
+    private static int stickMode = 0;                // 0=없음, 1=벽, 2=천장
 
     @SubscribeEvent
     public static void onClientTick(TickEvent.ClientTickEvent event) {
         if (event.phase != TickEvent.Phase.START) return;
         Minecraft mc = Minecraft.getInstance();
 
-        handleWallClimb(mc);
+        handleClimb(mc);
 
         // 자유 시점 ON/OFF (4/5) — 술래는 게임 중(숨기/찾기) 금지(반칙 방지). 숨는 사람은 허용.
         boolean inPlay = CamoEditState.phase == 1 || CamoEditState.phase == 2;
@@ -82,30 +82,40 @@ public class ChameleonInput {
      * - 점프키 = 위로, Q(아이템 버리기 키) = 아래로, 아무것도 안 누르면 그 자리 정지.
      * - 땅에 닿거나 벽에서 완전히 멀어지면 해제된다.
      */
-    private static void handleWallClimb(Minecraft mc) {
+    private static void handleClimb(Minecraft mc) {
         LocalPlayer p = mc.player;
-        if (p == null || Freecam.isActive()) { wallStuck = false; return; }
-        if (p.isSpectator() || p.isPassenger() || p.isFallFlying() || p.getAbilities().flying
-                || p.onClimbable() || p.isInWater() || p.isInLava() || p.onGround()) {
-            wallStuck = false;
+        if (p == null || Freecam.isActive() || p.isSpectator() || p.isPassenger()
+                || p.isFallFlying() || p.getAbilities().flying
+                || p.onClimbable() || p.isInWater() || p.isInLava()) {
+            stickMode = 0;
             return;
         }
-        // 색칠 등 화면이 열려 있어도, 벽에 붙어있던 상태면 그 자리에 고정(안 떨어지게)
+        if (p.onGround()) { stickMode = 0; return; }
+        // 화면(색칠 등)이 열려 있어도 붙어있던 상태면 그 자리에 고정
         if (mc.screen != null) {
-            if (wallStuck) { p.setDeltaMovement(0, 0, 0); p.resetFallDistance(); }
+            if (stickMode != 0) { p.setDeltaMovement(0, 0, 0); p.resetFallDistance(); }
             return;
         }
 
-        if (p.horizontalCollision) wallStuck = true;       // 벽에 밀착하면 붙음
-        if (wallStuck && !nearWall(p)) wallStuck = false;  // 벽에서 완전히 떨어지면 해제(낙하)
-        if (!wallStuck) return;
+        boolean ceiling = ceilingAbove(p);
+        // 붙기 판정: 이미 붙은 상태에서 천장을 만나면 천장 매달림, 벽에 밀착하면 벽, 벗어나면 해제
+        if (ceiling && stickMode != 0) stickMode = 2;
+        else if (p.horizontalCollision) stickMode = 1;
+        else if (stickMode == 1 && !nearWall(p)) stickMode = 0;
+        else if (stickMode == 2 && !ceiling) stickMode = 0;
+        if (stickMode == 0) return;
 
         Vec3 m = p.getDeltaMovement();
-        double vy;
-        if (mc.options.keyJump.isDown())      vy = CLIMB_SPEED;   // 위로
-        else if (mc.options.keyDrop.isDown()) vy = -CLIMB_SPEED;  // Q = 아래로
-        else                                  vy = 0.0;           // 그 자리 정지
-        p.setDeltaMovement(m.x, vy, m.z);
+        if (stickMode == 2) {
+            // 천장 매달림: Q=떨어짐, 그 외엔 수평 이동하며 매달림(위로 안 떨어지게)
+            if (mc.options.keyDrop.isDown()) { stickMode = 0; return; }
+            p.setDeltaMovement(m.x, 0.0, m.z);
+        } else {
+            // 벽: 점프=위, Q=아래, 무입력=정지
+            double vy = mc.options.keyJump.isDown() ? CLIMB_SPEED
+                    : mc.options.keyDrop.isDown() ? -CLIMB_SPEED : 0.0;
+            p.setDeltaMovement(m.x, vy, m.z);
+        }
         p.resetFallDistance();
     }
 
@@ -113,6 +123,13 @@ public class ChameleonInput {
     private static boolean nearWall(LocalPlayer p) {
         AABB box = p.getBoundingBox().inflate(0.2, -0.1, 0.2);
         return !p.level().noCollision(p, box);
+    }
+
+    /** 플레이어 머리 위에 천장(블록)이 있는지. */
+    private static boolean ceilingAbove(LocalPlayer p) {
+        AABB b = p.getBoundingBox();
+        AABB above = new AABB(b.minX + 0.05, b.maxY, b.minZ + 0.05, b.maxX - 0.05, b.maxY + 0.2, b.maxZ - 0.05);
+        return !p.level().noCollision(p, above);
     }
 
     /** 월드 렌더 후반(파티클까지) = GUI 그려지기 전. 스포이드 모드면 커서 밑 픽셀 색을 읽어 갱신. */
