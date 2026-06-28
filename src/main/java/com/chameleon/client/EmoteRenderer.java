@@ -39,13 +39,16 @@ public class EmoteRenderer {
         float partial = event.getPartialTick();
         float age = player.tickCount + partial;
 
-        // 모델 기본 상태 셋업 후 이모트 포즈 덮어쓰기
+        // 모델 기본 상태 셋업 후 이모트 포즈 덮어쓰기 (머리는 실제 시선대로 자연스럽게)
         model.young = false;
         model.crouching = false;
         model.riding = false;
         model.attackTime = 0f;
-        model.setupAnim(player, 0f, 0f, age, 0f, 0f);
-        EmotePoser.apply(model, emote, age);
+        float bodyYaw0 = Mth.rotLerp(partial, player.yBodyRotO, player.yBodyRot);
+        float headYaw = Mth.rotLerp(partial, player.yHeadRotO, player.yHeadRot);
+        float headPitch = Mth.lerp(partial, player.xRotO, player.getXRot());
+        model.setupAnim(player, 0f, 0f, age, headYaw - bodyYaw0, headPitch);
+        EmotePoser.apply(model, emote);
 
         // LivingEntityRenderer.render의 변환을 흉내(서있는 기준)
         ps.pushPose();

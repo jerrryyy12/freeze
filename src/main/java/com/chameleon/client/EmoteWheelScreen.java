@@ -42,7 +42,7 @@ public class EmoteWheelScreen extends Screen {
         hover = hoveredSlot(mouseX, mouseY);
 
         // 가운데 안내
-        g.drawCenteredString(this.font, hover >= 0 ? EmotePoser.NAMES[hover] : "이모트 선택",
+        g.drawCenteredString(this.font, hover >= 0 ? EmotePoser.NAMES[hover] : "§c이모트 끄기",
                 cx, cy - 4, 0xFFFFFFFF);
 
         int n = EmotePoser.COUNT;
@@ -58,7 +58,7 @@ public class EmoteWheelScreen extends Screen {
                     on ? 0xFF2BB6FF : 0xC0202020);
             g.drawString(this.font, name, lx - w / 2, ly - 4, on ? 0xFF000000 : 0xFFE0E0E0, false);
         }
-        g.drawCenteredString(this.font, "좌클릭=재생 · ESC=취소", cx, cy + 8, 0xFF9A9A9A);
+        g.drawCenteredString(this.font, "좌클릭=재생 · 가운데=끄기 · ESC=취소", cx, cy + 8, 0xFF9A9A9A);
     }
 
     private int hoveredSlot(double mx, double my) {
@@ -74,16 +74,14 @@ public class EmoteWheelScreen extends Screen {
     public boolean mouseClicked(double mx, double my, int button) {
         if (button == 0) {
             int slot = hoveredSlot(mx, my);
-            if (slot >= 0) {
-                play(slot);
-                return true;
-            }
-            this.onClose(); // 가운데 = 취소
+            if (slot >= 0) play(slot);
+            else play(-1); // 가운데 = 이모트 끄기
             return true;
         }
         return super.mouseClicked(mx, my, button);
     }
 
+    /** emote=-1 이면 끄기. */
     private void play(int emote) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.player != null) {

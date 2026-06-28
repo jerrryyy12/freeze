@@ -93,10 +93,15 @@ public class ChameleonInput {
      */
     private static void handleWallClimb(Minecraft mc) {
         LocalPlayer p = mc.player;
-        if (p == null || mc.screen != null || Freecam.isActive()) { wallStuck = false; return; }
+        if (p == null || Freecam.isActive()) { wallStuck = false; return; }
         if (p.isSpectator() || p.isPassenger() || p.isFallFlying() || p.getAbilities().flying
                 || p.onClimbable() || p.isInWater() || p.isInLava() || p.onGround()) {
             wallStuck = false;
+            return;
+        }
+        // 색칠 등 화면이 열려 있어도, 벽에 붙어있던 상태면 그 자리에 고정(안 떨어지게)
+        if (mc.screen != null) {
+            if (wallStuck) { p.setDeltaMovement(0, 0, 0); p.resetFallDistance(); }
             return;
         }
 
