@@ -4,6 +4,7 @@ import com.chameleon.ChameleonItems;
 import com.chameleon.CamoStore;
 import com.chameleon.net.ChameleonNet;
 import net.minecraft.ChatFormatting;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.game.ClientboundSetSubtitleTextPacket;
@@ -71,6 +72,10 @@ public class CamoGame {
     private static final double SHOTGUN_REACH = 45.0;
     private static final int SHOTGUN_COOLDOWN = 16;
 
+    // 블록 파묻힘(반칙 방지): 블록 속에 숨으면 경고 후 발광 공개
+    private static final int BURY_WARN_TICKS = 100;   // 5초 경고 후 발광
+    private static final Map<UUID, Integer> buriedTicks = new HashMap<>();
+
     private static Phase phase = Phase.LOBBY;
     private static int phaseTicks = 0;
     private static int seekDurationTicks = 0;
@@ -137,6 +142,7 @@ public class CamoGame {
         }
         roles.clear();
         origModes.clear();
+        buriedTicks.clear();
         phase = Phase.LOBBY;
         phaseTicks = 0;
         hiderCount = 0;
@@ -158,6 +164,7 @@ public class CamoGame {
                 if (phaseTicks <= 0) { startReveal(server, true); return; }
                 if (hiderCount > 0 && aliveHiders(server) == 0) { startReveal(server, false); return; }
                 if (phaseTicks % 20 == 0) showTimer(server, "§e남은 시간", true);
+                checkBuried(server); // 블록에 파묻힌 숨는 사람 경고/발광 (타이머보다 뒤 = 경고 우선 표시)
             }
             case REVEAL -> {
                 if (phaseTicks % 20 == 0) showTimer(server, "§a정답 공개", false);
@@ -180,6 +187,7 @@ public class CamoGame {
 
     /** 게임 종료 → 정답 공개(살아남은 숨는 사람 발광+고정+위장유지). */
     private static void startReveal(MinecraftServer server, boolean hidersWon) {
+        buriedTicks.clear(); // 정답 공개에선 어차피 전원 발광
         Component title = hidersWon ? Component.literal("§b숨는 사람 승리!") : Component.literal("§c술래 승리!");
         announce(server, title, Component.literal("정답 공개 — 4번=자유 시점"));
         for (ServerPlayer p : server.getPlayerList().getPlayers()) {
@@ -235,8 +243,51 @@ public class CamoGame {
 
     private static void eliminate(MinecraftServer server, ServerPlayer hider) {
         hider.setGameMode(GameType.SPECTATOR);
+        buriedTicks.remove(hider.getUUID());
         server.getPlayerList().broadcastSystemMessage(
                 Component.literal("§c" + hider.getName().getString() + " 발견됨! (탈락)"), false);
+    }
+
+    /**
+     * 블록에 파묻혀 안 보이는 숨는 사람 처리(반칙 방지).
+     * 파묻힌 채로 5초가 지나면 발광시켜 위치를 공개하고, 그 전까지 본인 화면에 경고 카운트를 띄운다.
+     */
+    private static void checkBuried(MinecraftServer server) {
+        for (ServerPlayer p : server.getPlayerList().getPlayers()) {
+            if (roles.get(p.getUUID()) != Role.HIDER || p.isSpectator()) continue;
+            UUID id = p.getUUID();
+            if (isBuried(p)) {
+                int t = buriedTicks.merge(id, 1, Integer::sum);
+                if (t >= BURY_WARN_TICKS) {
+                    if (t % 20 == 0) // 발광 갱신(끊기지 않게 1초마다)
+                        p.addEffect(new MobEffectInstance(MobEffects.GLOWING, 40, 0, false, false));
+                    p.displayClientMessage(Component.literal("§c§l⚠ 블록에 숨음 — 위치 공개됨(발광)"), true);
+                } else {
+                    int sec = (BURY_WARN_TICKS - t + 19) / 20;
+                    p.displayClientMessage(
+                            Component.literal("§e§l⚠ 블록에 파묻힘! §f" + sec + "초 §e후 위치 공개"), true);
+                }
+            } else if (buriedTicks.remove(id) != null) {
+                p.removeEffect(MobEffects.GLOWING); // 빠져나오면 발광 해제
+            }
+        }
+    }
+
+    /** 플레이어 몸 주변이 대부분 막혀 있으면(블록 속) 파묻힌 것으로 본다. */
+    private static boolean isBuried(ServerPlayer p) {
+        var lvl = p.level();
+        double x = p.getX(), y = p.getY(), z = p.getZ();
+        int solid = 0, total = 0;
+        for (double yy : new double[]{y + 0.2, y + 0.5}) {
+            for (double dx = -0.7; dx <= 0.71; dx += 0.7) {
+                for (double dz = -0.7; dz <= 0.71; dz += 0.7) {
+                    total++;
+                    BlockPos bp = BlockPos.containing(x + dx, yy, z + dz);
+                    if (lvl.getBlockState(bp).isSuffocating(lvl, bp)) solid++;
+                }
+            }
+        }
+        return solid >= total * 0.6; // 60% 이상 막힘 = 파묻힘
     }
 
     private static void lobbyTick(MinecraftServer server) {
