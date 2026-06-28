@@ -8,8 +8,8 @@ import net.minecraftforge.fml.loading.FMLEnvironment;
 
 /**
  * 서버 → 클라(플레이어별): 게임 페이즈 + 남은 시간(초) + 내 역할.
- * phase: 0=로비, 1=숨기, 2=찾기, 3=정답공개.  role: 0=없음/관전, 1=숨는사람, 2=술래.
- * (H 잠금·위장상시, 닉네임 숨김, HUD 타이머, 종료 리셋, 술래 자유시점 차단에 사용)
+ * phase: 0=로비, 1=준비, 2=숨기, 3=찾기, 4=정답공개.  role: 0=없음/관전, 1=숨는사람, 2=술래.
+ * (H 잠금·위장상시, 닉네임 숨김, HUD 타이머, 종료 리셋, 술래 자유시점 차단, 크기선택 팝업에 사용)
  */
 public class GameStatePacket {
     public final int phase;
@@ -39,14 +39,19 @@ public class GameStatePacket {
     public static void handle(GameStatePacket m, CustomPayloadEvent.Context ctx) {
         ctx.setPacketHandled(true);
         if (FMLEnvironment.dist == Dist.CLIENT) {
+            int prevPhase = CamoEditState.phase;
             boolean wasActive = CamoEditState.gameActive;
             CamoEditState.phase = m.phase;
             CamoEditState.gameActive = m.phase != 0;
-            CamoEditState.hideNames = (m.phase == 1 || m.phase == 2);
+            CamoEditState.hideNames = (m.phase >= 1 && m.phase <= 3); // 준비/숨기/찾기엔 닉네임 숨김
             CamoEditState.gameSecondsLeft = m.secondsLeft;
             CamoEditState.localRole = m.role;
             if (wasActive && m.phase == 0) {
                 CamoEditState.resetForGameEnd(); // 게임 종료 → 그린 것 초기화 + 원래 스킨
+            }
+            // 준비 페이즈 진입 시 숨는 사람에게 크기 선택 팝업
+            if (m.phase == 1 && prevPhase != 1 && m.role == 1) {
+                com.chameleon.client.ScaleChooseScreen.open();
             }
         }
     }

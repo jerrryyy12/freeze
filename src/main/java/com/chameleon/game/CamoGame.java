@@ -45,13 +45,17 @@ import java.util.UUID;
  */
 public class CamoGame {
     public enum Role { HIDER, SEEKER }
-    public enum Phase { LOBBY, HIDE, SEEK, REVEAL }
+    public enum Phase { LOBBY, PREP, HIDE, SEEK, REVEAL }
 
-    private static final double HIDER_SCALE = 0.5;
-    private static final double SEEKER_SCALE = 4.0;
+    private static final double HIDER_SCALE = 0.5;   // 기본 숨는 사람 크기(미선택 시)
+    private static final double SEEKER_SCALE = 3.0;  // 술래 크기 3배
     private static final double HIDER_SPEED = 0.2;
     private static final double NORMAL_SPEED = 0.1;
     private static final String SEEKER_TEAM = "camo_seeker";
+    private static final int PREP_SECONDS = 15;      // 준비 시간(크기 선택)
+
+    // 숨는 사람이 준비시간에 고른 크기 배율(0.5/0.7/1.0)
+    private static final Map<UUID, Double> chosenScale = new HashMap<>();
 
     // 커스텀 설정(명령어로 변경) — 숨기/공개/기본 찾기 시간(초)
     private static int hideSeconds = 180;
@@ -103,6 +107,7 @@ public class CamoGame {
     public static int[] start(MinecraftServer server, int seekSeconds) {
         int hiders = 0, seekers = 0;
         seekDurationTicks = seekSeconds * 20;
+        chosenScale.clear();
         for (ServerPlayer p : server.getPlayerList().getPlayers()) {
             Role r = roles.getOrDefault(p.getUUID(), Role.HIDER);
             roles.put(p.getUUID(), r);
@@ -110,21 +115,45 @@ public class CamoGame {
             if (r == Role.SEEKER) {
                 seekers++;
                 applySeeker(server, p);
-                freezeSeekerForHide(p);
-                p.displayClientMessage(Component.literal("§c당신은 술래! 숨는 시간 동안 대기하세요 (실명)"), false);
+                freezeSeekerUntilSeek(p); // 준비+숨기 동안 대기(실명)
+                p.displayClientMessage(Component.literal("§c당신은 술래! 준비·숨는 시간 동안 대기하세요 (실명)"), false);
             } else {
                 hiders++;
+                chosenScale.put(p.getUUID(), HIDER_SCALE); // 기본 0.5배
                 applyHider(p);
-                p.displayClientMessage(Component.literal("§b숨는 사람! 3분 안에 위장(G)하고 숨으세요. (총에 맞으면 탈락)"), false);
+                p.displayClientMessage(Component.literal("§b준비 시간! 팝업에서 캐릭터 크기를 고르세요."), false);
             }
         }
         hiderCount = hiders;
+        phase = Phase.PREP;
+        phaseTicks = PREP_SECONDS * 20;
+        broadcastState(server, PREP_SECONDS);
+        announce(server, Component.literal("§a준비 시간!"),
+                Component.literal("숨는 사람은 크기를 고르세요 (" + PREP_SECONDS + "초)"));
+        return new int[]{hiders, seekers};
+    }
+
+    /** 준비 시간 종료 → 고른 크기 적용하고 숨기 시작. */
+    private static void startHide(MinecraftServer server) {
+        for (ServerPlayer p : server.getPlayerList().getPlayers()) {
+            if (roles.get(p.getUUID()) == Role.HIDER && !p.isSpectator()) {
+                setAttr(p, Attributes.SCALE, chosenScale.getOrDefault(p.getUUID(), HIDER_SCALE));
+            }
+        }
         phase = Phase.HIDE;
         phaseTicks = hideSeconds * 20;
         broadcastState(server, hideSeconds);
         announce(server, Component.literal("§b숨는 시간!"),
-                Component.literal(hideSeconds + "초 안에 숨으세요"));
-        return new int[]{hiders, seekers};
+                Component.literal(hideSeconds + "초 안에 위장(G)하고 숨으세요"));
+    }
+
+    /** 숨는 사람이 준비시간에 고른 크기 배율 적용(0.5/0.7/1.0로 스냅). */
+    public static void setHiderScale(ServerPlayer p, float scale) {
+        if (phase != Phase.PREP && phase != Phase.HIDE) return;
+        if (roles.get(p.getUUID()) != Role.HIDER || p.isSpectator()) return;
+        double s = scale <= 0.5f ? 0.5 : (scale >= 1.0f ? 1.0 : 0.7);
+        chosenScale.put(p.getUUID(), s);
+        setAttr(p, Attributes.SCALE, s);
     }
 
     public static void stop(MinecraftServer server) {
@@ -143,6 +172,7 @@ public class CamoGame {
         roles.clear();
         origModes.clear();
         buriedTicks.clear();
+        chosenScale.clear();
         phase = Phase.LOBBY;
         phaseTicks = 0;
         hiderCount = 0;
@@ -156,6 +186,10 @@ public class CamoGame {
         }
         if (phaseTicks > 0) phaseTicks--;
         switch (phase) {
+            case PREP -> {
+                if (phaseTicks % 20 == 0) showTimer(server, "§a준비 시간", true);
+                if (phaseTicks <= 0) startHide(server);
+            }
             case HIDE -> {
                 if (phaseTicks % 20 == 0) showTimer(server, "§b숨는 시간", true);
                 if (phaseTicks <= 0) startSeek(server);
@@ -318,9 +352,9 @@ public class CamoGame {
 
     // ---- 역할별 능력치 ----
 
-    /** 숨는 사람: 0.5배 + 속도2배 + 1하트 + (총만 탈락) 무적. */
+    /** 숨는 사람: 선택 크기 + 속도2배 + 1하트 + (총만 탈락) 무적. */
     private static void applyHider(ServerPlayer p) {
-        setAttr(p, Attributes.SCALE, HIDER_SCALE);
+        setAttr(p, Attributes.SCALE, chosenScale.getOrDefault(p.getUUID(), HIDER_SCALE));
         setAttr(p, Attributes.MOVEMENT_SPEED, HIDER_SPEED);
         AttributeInstance maxH = p.getAttribute(Attributes.MAX_HEALTH);
         if (maxH != null) maxH.setBaseValue(2.0);
@@ -342,10 +376,11 @@ public class CamoGame {
         sb.addPlayerToTeam(p.getScoreboardName(), seekerTeam(sb));
     }
 
-    /** 숨는 시간 동안 술래를 묶고 실명시킨다. */
-    private static void freezeSeekerForHide(ServerPlayer p) {
+    /** 준비+숨기 시간 동안 술래를 묶고 실명시킨다. */
+    private static void freezeSeekerUntilSeek(ServerPlayer p) {
         setAttr(p, Attributes.MOVEMENT_SPEED, 0.0);
-        p.addEffect(new MobEffectInstance(MobEffects.BLINDNESS, hideSeconds * 20 + 20, 0, false, false, true));
+        int ticks = (PREP_SECONDS + hideSeconds) * 20 + 20;
+        p.addEffect(new MobEffectInstance(MobEffects.BLINDNESS, ticks, 0, false, false, true));
     }
 
     /** 숨는 시간 종료 → 술래 풀어줌. */

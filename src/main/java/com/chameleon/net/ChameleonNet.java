@@ -47,6 +47,17 @@ public class ChameleonNet {
                 .decoder(EmotePacket::decode)
                 .consumerMainThread(EmotePacket::handle)
                 .add();
+
+        CHANNEL.messageBuilder(ScaleChoicePacket.class)
+                .encoder(ScaleChoicePacket::encode)
+                .decoder(ScaleChoicePacket::decode)
+                .consumerMainThread(ScaleChoicePacket::handle)
+                .add();
+    }
+
+    /** 클라이언트 → 서버: 준비시간에 고른 크기 배율 */
+    public static void sendScaleChoice(float scale) {
+        CHANNEL.send(new ScaleChoicePacket(scale), PacketDistributor.SERVER.noArg());
     }
 
     /** 서버 → 모든 클라이언트: 이모트 동기화 */

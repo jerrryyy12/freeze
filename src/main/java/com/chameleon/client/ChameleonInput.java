@@ -49,8 +49,8 @@ public class ChameleonInput {
 
         handleClimb(mc);
 
-        // 자유 시점 ON/OFF (4/5) — 술래는 게임 중(숨기/찾기) 금지(반칙 방지). 숨는 사람은 허용.
-        boolean inPlay = CamoEditState.phase == 1 || CamoEditState.phase == 2;
+        // 자유 시점 ON/OFF (4/5) — 술래는 게임 중(준비/숨기/찾기) 금지(반칙 방지). 숨는 사람은 허용.
+        boolean inPlay = CamoEditState.phase >= 1 && CamoEditState.phase <= 3;
         boolean seekerBlocked = inPlay && CamoEditState.localRole == 2;
         while (ChameleonClient.FREECAM_ON.consumeClick()) {
             if (seekerBlocked) {
