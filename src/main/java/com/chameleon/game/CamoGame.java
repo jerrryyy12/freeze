@@ -130,6 +130,7 @@ public class CamoGame {
         for (ServerPlayer p : server.getPlayerList().getPlayers()) {
             try {
                 restore(server, p);
+                com.chameleon.EmoteStore.clear(p.getUUID()); // 재생 중이던 이모트도 해제
             } catch (Exception e) {
                 com.chameleon.ChameleonMod.LOGGER.error("플레이어 복구 실패: {}", p.getScoreboardName(), e);
             }

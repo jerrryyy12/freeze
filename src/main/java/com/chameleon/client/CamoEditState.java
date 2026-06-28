@@ -88,7 +88,10 @@ public class CamoEditState {
         undoStack.clear();
         camoOn = false;
         Minecraft mc = Minecraft.getInstance();
-        if (mc.player != null) CamoClient.apply(mc.player.getUUID(), null); // 내 위장 텍스처 제거
+        if (mc.player != null) {
+            CamoClient.apply(mc.player.getUUID(), null);      // 내 위장 텍스처 제거
+            EmoteState.set(mc.player.getUUID(), -1);          // 내 이모트도 즉시 해제
+        }
     }
 
     public static void resetCanvas() {
