@@ -125,10 +125,12 @@ public final class Freecam {
         // 이번 프레임 마우스가 돌린 양 → 카메라 각도에 누적
         camYaw += p.getYRot() - prevPlayerYaw;
         camPitch = (float) Math.max(-90.0, Math.min(90.0, camPitch + (p.getXRot() - prevPlayerPitch)));
-        // 캐릭터는 회전하지 않도록 고정
-        freezeRotation(p, frozenYaw, frozenPitch);
+        // 캐릭터는 회전하지 않도록 고정. 직접 칠하기 중에는 머리도 똑바로(pitch 0) 고정해
+        // 박스 피킹과 렌더 머리가 일치하게 한다(시선 따라 기울면 머리 위치가 어긋남).
+        float framePitch = (mc.screen instanceof FreecamBrushScreen) ? 0f : frozenPitch;
+        freezeRotation(p, frozenYaw, framePitch);
         prevPlayerYaw = frozenYaw;
-        prevPlayerPitch = frozenPitch;
+        prevPlayerPitch = framePitch;
 
         event.setYaw(camYaw);
         event.setPitch(camPitch);
