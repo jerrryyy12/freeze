@@ -38,6 +38,17 @@ public final class Freecam {
 
     public static boolean isActive() { return active; }
 
+    // 직접 칠하기(브러시 화면)에서 쓰는 카메라 위치/각도 접근자
+    public static Vec3 camPos() { return pos; }
+    public static float camYaw() { return camYaw; }
+    public static float camPitch() { return camPitch; }
+
+    /** 브러시 화면에서 우클릭 드래그로 카메라를 돌릴 때 사용. */
+    public static void addCamRotation(float dYaw, float dPitch) {
+        camYaw += dYaw;
+        camPitch = (float) Math.max(-90.0, Math.min(90.0, camPitch + dPitch));
+    }
+
     public static void enable() {
         Minecraft mc = Minecraft.getInstance();
         LocalPlayer p = mc.player;

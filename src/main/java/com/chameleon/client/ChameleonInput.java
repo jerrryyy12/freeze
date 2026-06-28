@@ -69,7 +69,10 @@ public class ChameleonInput {
         }
 
         while (ChameleonClient.PAINT_KEY.consumeClick()) {
-            if (mc.screen == null) PaintScreen.open();
+            if (mc.screen == null) {
+                if (Freecam.isActive()) FreecamBrushScreen.open(); // 자유시점: 캐릭터에 직접 칠하기
+                else PaintScreen.open();                            // 평소: 2D/3D 편집창
+            }
         }
         while (ChameleonClient.TOGGLE_KEY.consumeClick()) {
             toggleCamo(mc);
@@ -192,7 +195,7 @@ public class ChameleonInput {
     }
 
     /** GUI 좌표 (guiX,guiY)에 해당하는 프레임버퍼 픽셀(월드) 색을 읽는다. */
-    private static int readPixelAt(double guiX, double guiY) {
+    public static int readPixelAt(double guiX, double guiY) {
         Minecraft mc = Minecraft.getInstance();
         RenderTarget rt = mc.getMainRenderTarget();
         double gw = mc.getWindow().getGuiScaledWidth();
