@@ -165,6 +165,10 @@ public class ChameleonInput {
         if (Minecraft.getInstance().screen instanceof EyedropperScreen es) {
             es.updateHover(readPixelAt(es.cursorX(), es.cursorY()));
         }
+        // 직접 칠하기: 커서 정확 역투영을 위해 이번 프레임의 투영·모델뷰 행렬 캡처
+        if (Minecraft.getInstance().screen instanceof FreecamBrushScreen) {
+            FreecamBrushScreen.captureView(event.getPoseStack().last().pose());
+        }
     }
 
     /** 숨기/찾기 페이즈엔 닉네임을 숨긴다(위치 노출 방지). 정답 공개 페이즈엔 보여준다. */

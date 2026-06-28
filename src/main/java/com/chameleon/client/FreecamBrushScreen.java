@@ -2,26 +2,27 @@ package com.chameleon.client;
 
 import com.chameleon.net.CamoPaintPacket;
 import com.chameleon.net.ChameleonNet;
+import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.phys.Vec3;
+import org.joml.Matrix4f;
+import org.joml.Vector4f;
 
 /**
  * 자유시점에서 캐릭터에 "직접" 칠하는 브러시 화면.
- * 화면을 띄우면 뒤로 실제 월드(자유시점)가 보이고, 마우스 커서로 내 캐릭터 몸을 직접 칠한다.
- * - 좌클릭/드래그: 조준 지점의 몸 텍셀에 색칠 (조준선 광선 → 6박스 교차)
- * - 우클릭 드래그: 카메라 회전 / 우클릭(제자리): 스포이드(주변 색 추출)
- * - 휠: 브러시 크기, G/ESC: 닫기
- * 박스/면 UV 기하는 3D 편집창과 동일(Paint3DScreen.BOXES/PaintScreen.FACES) 규칙을 재사용한다.
+ * 뒤로 실제 월드(자유시점)가 보이고, 마우스 커서로 내 캐릭터 몸을 직접 칠한다.
+ * 커서 픽셀 → (마인크래프트 실제 투영행렬 역투영) 월드 광선 → 6박스 면 교차 → 텍셀.
+ * - 좌클릭/드래그: 색칠 · 우클릭드래그: 시점 회전 · 우클릭(제자리): 스포이드 · 휠: 브러시 크기 · G/ESC: 닫기
  */
 public class FreecamBrushScreen extends Screen {
 
     private static final int SIZE = CamoEditState.SIZE;
 
-    // 부위 박스(머리/몸통/오른팔/왼팔/오른다리/왼다리): cx,cy,cz, sx,sy,sz (텍셀, 모델 중앙 기준)
+    // 부위 박스: cx,cy,cz, sx,sy,sz (텍셀, 모델 중앙 기준) — Paint3DScreen와 동일
     private static final int[][] BOXES = {
             {0, 12, 0, 8, 8, 8},
             {0, 2, 0, 8, 12, 4},
@@ -31,6 +32,13 @@ public class FreecamBrushScreen extends Screen {
             {2, -10, 0, 4, 12, 4},
     };
     private static final int[][][] FACES = PaintScreen.FACES;
+
+    // 월드 렌더에서 캡처한 역행렬(클립→카메라상대월드) + 카메라 위치
+    private static Matrix4f invMatrix = null;
+    private static Vec3 camPos = Vec3.ZERO;
+
+    // 팔레트 배치
+    private static final int SW = 14, COLS = 8, PAL_X = 8, PAL_Y = 28, PAL_ROWS = 4;
 
     private boolean dirty = false;
     private double rPressX, rPressY;
@@ -52,6 +60,14 @@ public class FreecamBrushScreen extends Screen {
         mc.setScreen(new FreecamBrushScreen());
     }
 
+    /** 월드 렌더 단계에서 호출: 이번 프레임 투영·모델뷰로 역투영 행렬과 카메라 위치를 저장. */
+    public static void captureView(Matrix4f modelView) {
+        Matrix4f proj = RenderSystem.getProjectionMatrix();
+        Matrix4f combined = new Matrix4f(proj).mul(modelView);
+        invMatrix = combined.invert(new Matrix4f());
+        camPos = Minecraft.getInstance().gameRenderer.getMainCamera().getPosition();
+    }
+
     @Override
     public void renderBackground(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         // 배경 없음 — 뒤의 실제 월드(자유시점)가 그대로 보이게.
@@ -60,20 +76,30 @@ public class FreecamBrushScreen extends Screen {
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         super.render(g, mouseX, mouseY, partialTick);
-        // 브러시 커서(가운데 비움 → 스포이드가 월드 색을 읽게)
+
+        // 브러시 커서(가운데 비움)
         int r = Math.max(3, CamoEditState.brush + 2);
         drawRing(g, mouseX, mouseY, r, 0xFF000000);
         drawRing(g, mouseX, mouseY, r - 1, 0xFFFFFFFF);
 
-        // HUD
-        g.fill(8, 8, 30, 22, 0xFF000000);
-        g.fill(9, 9, 29, 21, CamoEditState.selectedColor);
-        String info = (CamoEditState.blockPixelMode
-                ? "블록픽셀 " + CamoEditState.blockBrush + "칸"
-                : "브러시 " + CamoEditState.brush + "칸");
-        g.drawString(this.font, info, 34, 11, 0xFFFFFFFF, false);
+        // HUD: 선택색 + 브러시
+        g.fill(PAL_X, 8, PAL_X + 22, 22, 0xFF000000);
+        g.fill(PAL_X + 1, 9, PAL_X + 21, 21, CamoEditState.selectedColor);
+        String info = CamoEditState.blockPixelMode
+                ? "블록픽셀 " + CamoEditState.blockBrush + "칸" : "브러시 " + CamoEditState.brush + "칸";
+        g.drawString(this.font, info, PAL_X + 26, 11, 0xFFFFFFFF, false);
+
+        // 팔레트(주변 블록색 + 추출색 + 기본색)
+        java.util.List<Integer> pal = CamoEditState.palette;
+        for (int i = 0; i < pal.size() && i < COLS * PAL_ROWS; i++) {
+            int x = PAL_X + (i % COLS) * (SW + 2), y = PAL_Y + (i / COLS) * (SW + 2);
+            int col = pal.get(i);
+            if (col == CamoEditState.selectedColor) g.fill(x - 1, y - 1, x + SW + 1, y + SW + 1, 0xFFFFFF00);
+            g.fill(x, y, x + SW, y + SW, col);
+        }
+
         g.drawCenteredString(this.font,
-                "좌클릭=칠하기 · 우클릭드래그=시점 · 우클릭=스포이드 · 휠=크기 · G=닫기",
+                "좌클릭=칠하기 · 우클릭드래그=시점 · 우클릭=스포이드 · 팔레트클릭=색 · 휠=크기 · G=닫기",
                 this.width / 2, this.height - 14, 0xFFE0E0E0);
     }
 
@@ -88,11 +114,25 @@ public class FreecamBrushScreen extends Screen {
         }
     }
 
+    /** 팔레트 칸 클릭이면 색 선택하고 true. */
+    private boolean clickPalette(double mx, double my) {
+        java.util.List<Integer> pal = CamoEditState.palette;
+        for (int i = 0; i < pal.size() && i < COLS * PAL_ROWS; i++) {
+            int x = PAL_X + (i % COLS) * (SW + 2), y = PAL_Y + (i / COLS) * (SW + 2);
+            if (mx >= x && mx < x + SW && my >= y && my < y + SW) {
+                CamoEditState.selectedColor = pal.get(i);
+                return true;
+            }
+        }
+        return false;
+    }
+
     // ---- 입력 ----
 
     @Override
     public boolean mouseClicked(double mx, double my, int button) {
         if (button == 0) {
+            if (clickPalette(mx, my)) return true;
             CamoEditState.pushUndo();
             paintAt(mx, my);
             return true;
@@ -112,7 +152,7 @@ public class FreecamBrushScreen extends Screen {
         }
         if (button == 1) {
             if (Math.abs(mx - rPressX) > 3 || Math.abs(my - rPressY) > 3) rDragged = true;
-            Freecam.addCamRotation((float) dx * 0.15f, (float) dy * 0.15f); // 시점 회전
+            Freecam.addCamRotation((float) dx * 0.15f, (float) dy * 0.15f);
             return true;
         }
         return super.mouseDragged(mx, my, button, dx, dy);
@@ -121,8 +161,7 @@ public class FreecamBrushScreen extends Screen {
     @Override
     public boolean mouseReleased(double mx, double my, int button) {
         if (button == 1 && !rDragged) {
-            // 제자리 우클릭 = 스포이드(커서 밑 월드 색 추출)
-            int c = ChameleonInput.readPixelAt(mx, my);
+            int c = ChameleonInput.readPixelAt(mx, my); // 제자리 우클릭 = 스포이드
             CamoEditState.addColor(0xFF000000 | (c & 0xFFFFFF));
             return true;
         }
@@ -145,20 +184,25 @@ public class FreecamBrushScreen extends Screen {
 
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        if (ChameleonClient.PAINT_KEY.matches(keyCode, scanCode)) { // G로 닫기
+        if (ChameleonClient.PAINT_KEY.matches(keyCode, scanCode)) {
             this.onClose();
             return true;
         }
         return super.keyPressed(keyCode, scanCode, modifiers);
     }
 
-    /** 커서 픽셀로 광선을 쏴 6박스 면과 교차 → 가장 앞면 텍셀에 색칠. */
+    /** 커서 픽셀 → 월드 광선 → 6박스 면 교차 → 가장 앞면 텍셀에 색칠. */
     private void paintAt(double mx, double my) {
         LocalPlayer p = Minecraft.getInstance().player;
-        if (p == null || CamoEditState.pixels == null) return;
+        if (p == null || CamoEditState.pixels == null || invMatrix == null) return;
 
-        Vec3 origin = Freecam.camPos();
-        Vec3 dir = cursorRay(mx, my);
+        double ndcX = 2.0 * mx / this.width - 1.0;
+        double ndcY = 1.0 - 2.0 * my / this.height;
+        Vec3 near = unproject(ndcX, ndcY, 0.0);
+        Vec3 far = unproject(ndcX, ndcY, 1.0);
+        Vec3 origin = near;
+        Vec3 dir = far.subtract(near).normalize();
+
         double bodyYaw = p.yBodyRot;
         double scale = p.getScale();
         double fx = p.getX(), fy = p.getY(), fz = p.getZ();
@@ -168,10 +212,9 @@ public class FreecamBrushScreen extends Screen {
         for (int part = 0; part < 6; part++) {
             for (int face = 0; face < 6; face++) {
                 Vec3[] geo = faceGeo(part, face);
-                Vec3 o = geo[0], ue = geo[1], ve = geo[2];
-                Vec3 p00 = world(o, bodyYaw, scale, fx, fy, fz);
-                Vec3 pu = world(o.add(ue), bodyYaw, scale, fx, fy, fz);
-                Vec3 pv = world(o.add(ve), bodyYaw, scale, fx, fy, fz);
+                Vec3 p00 = world(geo[0], bodyYaw, scale, fx, fy, fz);
+                Vec3 pu = world(geo[0].add(geo[1]), bodyYaw, scale, fx, fy, fz);
+                Vec3 pv = world(geo[0].add(geo[2]), bodyYaw, scale, fx, fy, fz);
                 Vec3 e1 = pu.subtract(p00), e2 = pv.subtract(p00);
                 Vec3 n = e1.cross(e2);
                 double denom = dir.dot(n);
@@ -195,32 +238,23 @@ public class FreecamBrushScreen extends Screen {
         int[] f = FACES[bestPart][bestFace];
         CamoEditState.applyBrushOnFace(f, f[0] + bestTu, f[1] + bestTv);
         dirty = true;
-        CamoClient.apply(p.getUUID(), CamoEditState.pixels.clone()); // 즉시 반영(라이브)
+        CamoClient.apply(p.getUUID(), CamoEditState.pixels.clone()); // 라이브 반영
     }
 
-    /** 커서(GUI 좌표) → 월드 광선 방향. 자유 카메라 각도 + FOV로 계산. */
-    private Vec3 cursorRay(double mx, double my) {
-        Minecraft mc = Minecraft.getInstance();
-        int fovDeg = mc.options.fov().get();
-        double fov = Math.toRadians(fovDeg);
-        double tanHalf = Math.tan(fov / 2);
-        double aspect = (double) this.width / this.height;
-        double ndcX = (2.0 * mx / this.width - 1.0) * aspect * tanHalf;
-        double ndcY = (1.0 - 2.0 * my / this.height) * tanHalf;
-        double yr = Math.toRadians(Freecam.camYaw()), pr = Math.toRadians(Freecam.camPitch());
-        double cp = Math.cos(pr);
-        Vec3 fwd = new Vec3(-Math.sin(yr) * cp, -Math.sin(pr), Math.cos(yr) * cp);
-        Vec3 right = new Vec3(-Math.cos(yr), 0, -Math.sin(yr));
-        Vec3 up = right.cross(fwd);
-        return fwd.add(right.scale(ndcX)).add(up.scale(ndcY)).normalize();
+    /** 클립좌표(ndc) → 월드 좌표(역투영 + 카메라 위치). */
+    private static Vec3 unproject(double ndcX, double ndcY, double ndcZ) {
+        Vector4f v = new Vector4f((float) ndcX, (float) ndcY, (float) ndcZ, 1f);
+        invMatrix.transform(v);
+        if (v.w != 0) { v.x /= v.w; v.y /= v.w; v.z /= v.w; }
+        return new Vec3(camPos.x + v.x, camPos.y + v.y, camPos.z + v.z);
     }
 
     /** 박스 텍셀 좌표(모델 중앙 기준) → 월드 좌표. 발=y-16, 머리위=y+16. */
     private static Vec3 world(Vec3 pt, double bodyYaw, double scale, double fx, double fy, double fz) {
         double th = Math.toRadians(bodyYaw), cos = Math.cos(th), sin = Math.sin(th);
-        double lx = pt.x / 16.0 * scale;          // 좌(+x) 축
-        double uy = (pt.y + 16) / 16.0 * scale;   // 위 축(발이 0)
-        double fzz = pt.z / 16.0 * scale;         // 앞(+z) 축
+        double lx = pt.x / 16.0 * scale;
+        double uy = (pt.y + 16) / 16.0 * scale;
+        double fzz = pt.z / 16.0 * scale;
         return new Vec3(fx + lx * cos + fzz * (-sin), fy + uy, fz + lx * sin + fzz * cos);
     }
 
