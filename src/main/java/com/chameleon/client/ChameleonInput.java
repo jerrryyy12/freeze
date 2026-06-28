@@ -38,6 +38,10 @@ public class ChameleonInput {
     private static final double CLIMB_SPEED = 0.15;  // 벽 오르내림 속도
     private static int stickMode = 0;                // 0=없음, 1=벽, 2=천장
 
+    // 인사 이모트 자동 종료 (반복 애니메이션이라 2초 뒤 자동으로 끔)
+    private static final int WAVE_TICKS = 40;        // 2초
+    private static int waveStart = -1;
+
     @SubscribeEvent
     public static void onClientTick(TickEvent.ClientTickEvent event) {
         if (event.phase != TickEvent.Phase.START) return;
@@ -73,7 +77,26 @@ public class ChameleonInput {
         while (ChameleonClient.EMOTE_KEY.consumeClick()) {
             if (mc.screen == null) EmoteWheelScreen.open();
         }
-        // 이모트는 이동해도 유지된다(끄려면 R 휠 가운데). 따로 자동 해제하지 않음.
+        // 고정 포즈 이모트는 이동해도 유지된다(끄려면 R 휠 가운데).
+        // 단, 인사(0번)는 반복 애니메이션이라 2초 뒤 자동으로 끈다.
+        handleWaveAutoStop(mc);
+    }
+
+    /** 인사 이모트는 시작 후 2초가 지나면 자동으로 해제한다. */
+    private static void handleWaveAutoStop(Minecraft mc) {
+        LocalPlayer p = mc.player;
+        if (p == null) { waveStart = -1; return; }
+        if (EmoteState.emoteOf(p.getUUID()) == 0) {
+            if (waveStart < 0) {
+                waveStart = p.tickCount;
+            } else if (p.tickCount - waveStart >= WAVE_TICKS) {
+                EmoteState.set(p.getUUID(), -1);
+                ChameleonNet.sendEmote(-1);
+                waveStart = -1;
+            }
+        } else {
+            waveStart = -1;
+        }
     }
 
     /**
