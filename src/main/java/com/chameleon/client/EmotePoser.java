@@ -11,8 +11,8 @@ import net.minecraft.util.Mth;
 public final class EmotePoser {
 
     public static final String[] NAMES = {
-            "인사", "만세", "T 포즈", "가리키기", "앉기", "생각",
-            "항복", "여유", "환영", "허리춤", "대자 눕기", "옆으로 눕기"
+            "인사", "만세", "T 포즈", "앉기", "항복",
+            "여유", "환영", "허리춤", "대자 눕기", "옆으로 눕기"
     };
     public static final int COUNT = NAMES.length;
 
@@ -32,38 +32,32 @@ public final class EmotePoser {
                 m.rightArm.zRot = 1.55f;
                 m.leftArm.zRot = -1.55f;
             }
-            case 3 -> { // 가리키기 — 오른팔 앞으로
-                m.rightArm.xRot = -1.5f;
-            }
-            case 4 -> { // 앉기 — 다리 앞으로(바닥 내림은 렌더러)
+            case 3 -> { // 앉기 — 다리 앞으로(바닥 내림은 렌더러)
                 m.rightLeg.xRot = -1.5f; m.rightLeg.zRot = 0.15f;
                 m.leftLeg.xRot = -1.5f;  m.leftLeg.zRot = -0.15f;
                 m.rightArm.xRot = -0.5f;  m.leftArm.xRot = -0.5f;
             }
-            case 5 -> { // 생각 — 오른손 얼굴 쪽
-                m.rightArm.xRot = -1.95f; m.rightArm.zRot = -0.55f;
-            }
-            case 6 -> { // 항복 — 양팔 위로 굽힘
+            case 4 -> { // 항복 — 양팔 위로 굽힘
                 m.rightArm.xRot = -2.5f; m.rightArm.zRot = -0.45f;
                 m.leftArm.xRot = -2.5f;  m.leftArm.zRot = 0.45f;
             }
-            case 7 -> { // 손 머리뒤 — 양팔 굽혀 머리 뒤로(팔꿈치 밖)
+            case 5 -> { // 여유 — 양팔 굽혀 머리 뒤로(팔꿈치 밖)
                 m.rightArm.xRot = -2.2f; m.rightArm.zRot = -1.05f;
                 m.leftArm.xRot = -2.2f;  m.leftArm.zRot = 1.05f;
             }
-            case 8 -> { // 응원 — 양팔 앞으로
+            case 6 -> { // 환영 — 양팔 앞으로
                 m.rightArm.xRot = -1.25f;
                 m.leftArm.xRot = -1.25f;
             }
-            case 9 -> { // 허리춤 — 양손 허리에
+            case 7 -> { // 허리춤 — 양손 허리에
                 m.rightArm.xRot = -0.2f; m.rightArm.zRot = 1.1f;
                 m.leftArm.xRot = -0.2f;  m.leftArm.zRot = -1.1f;
             }
-            case 10 -> { // 대자 눕기 — 팔다리 X자로 쫙(눕힘은 렌더러)
+            case 8 -> { // 대자 눕기 — 팔다리 X자로 쫙(눕힘은 렌더러)
                 m.rightArm.zRot = 1.15f; m.leftArm.zRot = -1.15f;
                 m.rightLeg.zRot = 0.45f; m.leftLeg.zRot = -0.45f;
             }
-            case 11 -> { // 옆으로 눕기 — 약간 웅크림(눕힘+굴림은 렌더러)
+            case 9 -> { // 옆으로 눕기 — 약간 웅크림(눕힘+굴림은 렌더러)
                 m.rightArm.xRot = -0.6f; m.leftArm.xRot = -0.45f;
                 m.rightLeg.xRot = -0.6f; m.leftLeg.xRot = -0.85f;
             }
@@ -81,14 +75,14 @@ public final class EmotePoser {
 
     /** 앉기: 몸을 바닥으로 내리는 양(엔티티 공간, -가 아래). */
     public static float dropY(int emote) {
-        return emote == 4 ? -0.62f : 0f;
+        return emote == 3 ? -0.62f : 0f;
     }
 
     /** 눕기: 0=없음, 1=옆으로(ZP90), 2=대자/뒤로(XP90). 사망 쓰러짐과 같은 위치에서 회전. */
     public static int lieAxis(int emote) {
         return switch (emote) {
-            case 10 -> 2;
-            case 11 -> 1;
+            case 8 -> 2;
+            case 9 -> 1;
             default -> 0;
         };
     }
