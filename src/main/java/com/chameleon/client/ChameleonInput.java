@@ -73,16 +73,7 @@ public class ChameleonInput {
         while (ChameleonClient.EMOTE_KEY.consumeClick()) {
             if (mc.screen == null) EmoteWheelScreen.open();
         }
-        // 이모트 중 이동/공격하면 자동 해제 (자유 시점 이동키는 제외)
-        if (mc.player != null && mc.screen == null && !Freecam.isActive()
-                && EmoteState.emoteOf(mc.player.getUUID()) >= 0) {
-            var o = mc.options;
-            if (o.keyUp.isDown() || o.keyDown.isDown() || o.keyLeft.isDown() || o.keyRight.isDown()
-                    || o.keyJump.isDown() || o.keyAttack.isDown() || o.keyUse.isDown()) {
-                EmoteState.set(mc.player.getUUID(), -1);
-                ChameleonNet.sendEmote(-1);
-            }
-        }
+        // 이모트는 이동해도 유지된다(끄려면 R 휠 가운데). 따로 자동 해제하지 않음.
     }
 
     /**

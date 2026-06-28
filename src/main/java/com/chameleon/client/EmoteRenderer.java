@@ -47,7 +47,10 @@ public class EmoteRenderer {
         float bodyYaw0 = Mth.rotLerp(partial, player.yBodyRotO, player.yBodyRot);
         float headYaw = Mth.rotLerp(partial, player.yHeadRotO, player.yHeadRot);
         float headPitch = Mth.lerp(partial, player.xRotO, player.getXRot());
-        model.setupAnim(player, 0f, 0f, age, headYaw - bodyYaw0, headPitch);
+        // 이동 시 다리는 자연스럽게 걷도록 실제 보행 애니메이션 값 사용
+        float limbSwing = player.walkAnimation.position(partial);
+        float limbAmt = Math.min(1.0f, player.walkAnimation.speed(partial));
+        model.setupAnim(player, limbSwing, limbAmt, age, headYaw - bodyYaw0, headPitch);
         EmotePoser.apply(model, emote);
 
         // LivingEntityRenderer.render의 변환을 흉내(서있는 기준)
