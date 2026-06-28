@@ -12,7 +12,7 @@ public final class EmotePoser {
 
     public static final String[] NAMES = {
             "인사", "만세", "T 포즈", "가리키기", "앉기", "생각",
-            "항복", "손 머리뒤", "응원", "허리춤", "대자 눕기", "옆으로 눕기"
+            "항복", "여유", "환영", "허리춤", "대자 눕기", "옆으로 눕기"
     };
     public static final int COUNT = NAMES.length;
 
