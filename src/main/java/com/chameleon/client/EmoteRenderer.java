@@ -44,19 +44,23 @@ public class EmoteRenderer {
         model.crouching = false;
         model.riding = false;
         model.attackTime = 0f;
-        float bodyYaw0 = Mth.rotLerp(partial, player.yBodyRotO, player.yBodyRot);
+        float bodyYaw = Mth.rotLerp(partial, player.yBodyRotO, player.yBodyRot);
         float headYaw = Mth.rotLerp(partial, player.yHeadRotO, player.yHeadRot);
         float headPitch = Mth.lerp(partial, player.xRotO, player.getXRot());
         // 이동 시 다리는 자연스럽게 걷도록 실제 보행 애니메이션 값 사용
         float limbSwing = player.walkAnimation.position(partial);
         float limbAmt = Math.min(1.0f, player.walkAnimation.speed(partial));
-        model.setupAnim(player, limbSwing, limbAmt, age, headYaw - bodyYaw0, headPitch);
-        EmotePoser.apply(model, emote);
+        model.setupAnim(player, limbSwing, limbAmt, age, headYaw - bodyYaw, headPitch);
+        EmotePoser.apply(model, emote, age);
 
-        // LivingEntityRenderer.render의 변환을 흉내(서있는 기준)
+        // LivingEntityRenderer.render의 변환을 흉내. 앉기/눕기는 추가 변환.
         ps.pushPose();
-        float bodyYaw = Mth.rotLerp(partial, player.yBodyRotO, player.yBodyRot);
+        float drop = EmotePoser.dropY(emote);
+        if (drop != 0f) ps.translate(0f, drop, 0f);           // 앉기: 바닥으로 내림
         ps.mulPose(Axis.YP.rotationDegrees(180.0F - bodyYaw));
+        int lie = EmotePoser.lieAxis(emote);                   // 눕기(사망 쓰러짐과 같은 위치)
+        if (lie == 1) ps.mulPose(Axis.ZP.rotationDegrees(90.0F));
+        else if (lie == 2) ps.mulPose(Axis.XP.rotationDegrees(90.0F));
         ps.scale(-1f, -1f, 1f);
         float sc = player.getScale();
         if (sc != 1f) ps.scale(sc, sc, sc);
