@@ -165,9 +165,9 @@ public class ChameleonInput {
         if (Minecraft.getInstance().screen instanceof EyedropperScreen es) {
             es.updateHover(readPixelAt(es.cursorX(), es.cursorY()));
         }
-        // 직접 칠하기: 커서 정확 역투영을 위해 이번 프레임의 투영·카메라각도로 행렬 캡처
+        // 직접 칠하기: 내 캐릭터를 UV값으로 오프스크린 렌더(포즈 그대로 정확 피킹)
         if (Minecraft.getInstance().screen instanceof FreecamBrushScreen) {
-            FreecamBrushScreen.captureView();
+            BrushUvPicker.renderPass(event.getPartialTick());
         }
     }
 

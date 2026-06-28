@@ -2,40 +2,24 @@ package com.chameleon.client;
 
 import com.chameleon.net.CamoPaintPacket;
 import com.chameleon.net.ChameleonNet;
-import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.network.chat.Component;
-import net.minecraft.world.phys.Vec3;
-import org.joml.Matrix4f;
-import org.joml.Vector4f;
 
 /**
  * 자유시점에서 캐릭터에 "직접" 칠하는 브러시 화면.
  * 뒤로 실제 월드(자유시점)가 보이고, 마우스 커서로 내 캐릭터 몸을 직접 칠한다.
- * 커서 픽셀 → (마인크래프트 실제 투영행렬 역투영) 월드 광선 → 6박스 면 교차 → 텍셀.
- * - 좌클릭/드래그: 색칠 · 우클릭드래그: 시점 회전 · 우클릭(제자리): 스포이드 · 휠: 브러시 크기 · G/ESC: 닫기
+ * 피킹은 BrushUvPicker가 캐릭터를 UV값으로 오프스크린 렌더한 결과를 읽어 텍셀을 구한다
+ * (실제 렌더 포즈 그대로라 이모트·눕기 등 어떤 포즈에서도 정확).
+ * - 좌클릭/드래그: 색칠 · 우클릭드래그: 시점 회전 · 우클릭(제자리): 스포이드
+ * - 팔레트클릭: 색 선택 · 휠: 브러시 크기 · WASD: 카메라 이동 · G/ESC: 닫기
  */
 public class FreecamBrushScreen extends Screen {
 
     private static final int SIZE = CamoEditState.SIZE;
-
-    // 부위 박스: cx,cy,cz, sx,sy,sz (텍셀, 모델 중앙 기준) — Paint3DScreen와 동일
-    private static final int[][] BOXES = {
-            {0, 12, 0, 8, 8, 8},
-            {0, 2, 0, 8, 12, 4},
-            {-6, 2, 0, 4, 12, 4},
-            {6, 2, 0, 4, 12, 4},
-            {-2, -10, 0, 4, 12, 4},
-            {2, -10, 0, 4, 12, 4},
-    };
+    private static final int SCALE = SIZE / 64;
     private static final int[][][] FACES = PaintScreen.FACES;
-
-    // 월드 렌더에서 캡처한 역행렬(클립→카메라상대월드) + 카메라 위치
-    private static Matrix4f invMatrix = null;
-    private static Vec3 camPos = Vec3.ZERO;
 
     // 팔레트 배치
     private static final int SW = 14, COLS = 8, PAL_X = 8, PAL_Y = 28, PAL_ROWS = 4;
@@ -60,20 +44,6 @@ public class FreecamBrushScreen extends Screen {
         mc.setScreen(new FreecamBrushScreen());
     }
 
-    /**
-     * 월드 렌더 단계에서 호출: 실제 투영행렬 + 자유 카메라 각도로 뷰행렬을 만들어
-     * 역투영(클립→카메라상대월드) 행렬과 카메라 위치를 저장한다.
-     * 뷰행렬은 마인크래프트 카메라와 동일하게 RotX(pitch)·RotY(yaw+180).
-     */
-    public static void captureView() {
-        Matrix4f proj = RenderSystem.getProjectionMatrix();
-        Matrix4f view = new Matrix4f()
-                .rotateX((float) Math.toRadians(Freecam.camPitch()))
-                .rotateY((float) Math.toRadians(Freecam.camYaw() + 180.0));
-        invMatrix = new Matrix4f(proj).mul(view).invert(new Matrix4f());
-        camPos = Minecraft.getInstance().gameRenderer.getMainCamera().getPosition();
-    }
-
     @Override
     public void renderBackground(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         // 배경 없음 — 뒤의 실제 월드(자유시점)가 그대로 보이게.
@@ -95,7 +65,7 @@ public class FreecamBrushScreen extends Screen {
                 ? "블록픽셀 " + CamoEditState.blockBrush + "칸" : "브러시 " + CamoEditState.brush + "칸";
         g.drawString(this.font, info, PAL_X + 26, 11, 0xFFFFFFFF, false);
 
-        // 팔레트(주변 블록색 + 추출색 + 기본색)
+        // 팔레트
         java.util.List<Integer> pal = CamoEditState.palette;
         for (int i = 0; i < pal.size() && i < COLS * PAL_ROWS; i++) {
             int x = PAL_X + (i % COLS) * (SW + 2), y = PAL_Y + (i / COLS) * (SW + 2);
@@ -105,7 +75,7 @@ public class FreecamBrushScreen extends Screen {
         }
 
         g.drawCenteredString(this.font,
-                "좌클릭=칠하기 · 우클릭드래그=시점 · 우클릭=스포이드 · 팔레트클릭=색 · 휠=크기 · G=닫기",
+                "좌클릭=칠하기 · 우클릭드래그=시점 · 우클릭=스포이드 · 팔레트=색 · 휠=크기 · WASD=이동 · G=닫기",
                 this.width / 2, this.height - 14, 0xFFE0E0E0);
     }
 
@@ -120,7 +90,6 @@ public class FreecamBrushScreen extends Screen {
         }
     }
 
-    /** 팔레트 칸 클릭이면 색 선택하고 true. */
     private boolean clickPalette(double mx, double my) {
         java.util.List<Integer> pal = CamoEditState.palette;
         for (int i = 0; i < pal.size() && i < COLS * PAL_ROWS; i++) {
@@ -197,86 +166,33 @@ public class FreecamBrushScreen extends Screen {
         return super.keyPressed(keyCode, scanCode, modifiers);
     }
 
-    /** 커서 픽셀 → 월드 광선 → 6박스 면 교차 → 가장 앞면 텍셀에 색칠. */
+    /** 커서 밑 픽셀의 스킨 텍셀을 읽어 칠한다(BrushUvPicker가 렌더해둔 UV 버퍼 사용). */
     private void paintAt(double mx, double my) {
-        LocalPlayer p = Minecraft.getInstance().player;
-        if (p == null || CamoEditState.pixels == null || invMatrix == null) return;
+        if (CamoEditState.pixels == null) return;
+        int[] uv = BrushUvPicker.readUV(mx, my);
+        if (uv == null) return; // 캐릭터 밖
+        int su = uv[0] * SCALE, sv = uv[1] * SCALE;
+        int[] f = faceAt(su, sv);
+        if (f != null) {
+            CamoEditState.applyBrushOnFace(f, su, sv);
+        } else {
+            int b = Math.max(1, CamoEditState.brush);
+            CamoEditState.fill(su - b / 2, sv - b / 2, b, b, CamoEditState.selectedColor);
+        }
+        dirty = true;
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.player != null) CamoClient.apply(mc.player.getUUID(), CamoEditState.pixels.clone());
+    }
 
-        double ndcX = 2.0 * mx / this.width - 1.0;
-        double ndcY = 1.0 - 2.0 * my / this.height;
-        Vec3 near = unproject(ndcX, ndcY, 0.0);
-        Vec3 far = unproject(ndcX, ndcY, 1.0);
-        Vec3 origin = near;
-        Vec3 dir = far.subtract(near).normalize();
-
-        double bodyYaw = p.yBodyRot;
-        double scale = p.getScale();
-        double fx = p.getX(), fy = p.getY(), fz = p.getZ();
-
-        int bestPart = -1, bestFace = 0, bestTu = 0, bestTv = 0;
-        double bestT = Double.MAX_VALUE;
+    /** 텍셀 (su,sv)가 속한 면 UV 박스를 찾는다(없으면 null). */
+    private static int[] faceAt(int su, int sv) {
         for (int part = 0; part < 6; part++) {
             for (int face = 0; face < 6; face++) {
-                Vec3[] geo = faceGeo(part, face);
-                Vec3 p00 = world(geo[0], bodyYaw, scale, fx, fy, fz);
-                Vec3 pu = world(geo[0].add(geo[1]), bodyYaw, scale, fx, fy, fz);
-                Vec3 pv = world(geo[0].add(geo[2]), bodyYaw, scale, fx, fy, fz);
-                Vec3 e1 = pu.subtract(p00), e2 = pv.subtract(p00);
-                Vec3 n = e1.cross(e2);
-                double denom = dir.dot(n);
-                if (Math.abs(denom) < 1e-9) continue;
-                double t = p00.subtract(origin).dot(n) / denom;
-                if (t <= 0 || t >= bestT) continue;
-                Vec3 w = origin.add(dir.scale(t)).subtract(p00);
-                double e11 = e1.dot(e1), e12 = e1.dot(e2), e22 = e2.dot(e2);
-                double we1 = w.dot(e1), we2 = w.dot(e2);
-                double det = e11 * e22 - e12 * e12;
-                if (Math.abs(det) < 1e-9) continue;
-                double u = (we1 * e22 - we2 * e12) / det;
-                double v = (we2 * e11 - we1 * e12) / det;
-                if (u < 0 || u > 1 || v < 0 || v > 1) continue;
                 int[] f = FACES[part][face];
-                bestT = t; bestPart = part; bestFace = face;
-                bestTu = (int) (u * f[2]); bestTv = (int) (v * f[3]);
+                if (su >= f[0] && su < f[0] + f[2] && sv >= f[1] && sv < f[1] + f[3]) return f;
             }
         }
-        if (bestPart < 0) return;
-        int[] f = FACES[bestPart][bestFace];
-        CamoEditState.applyBrushOnFace(f, f[0] + bestTu, f[1] + bestTv);
-        dirty = true;
-        CamoClient.apply(p.getUUID(), CamoEditState.pixels.clone()); // 라이브 반영
-    }
-
-    /** 클립좌표(ndc) → 월드 좌표(역투영 + 카메라 위치). */
-    private static Vec3 unproject(double ndcX, double ndcY, double ndcZ) {
-        Vector4f v = new Vector4f((float) ndcX, (float) ndcY, (float) ndcZ, 1f);
-        invMatrix.transform(v);
-        if (v.w != 0) { v.x /= v.w; v.y /= v.w; v.z /= v.w; }
-        return new Vec3(camPos.x + v.x, camPos.y + v.y, camPos.z + v.z);
-    }
-
-    /** 박스 텍셀 좌표(모델 중앙 기준) → 월드 좌표. 발=y-16, 머리위=y+16. */
-    private static Vec3 world(Vec3 pt, double bodyYaw, double scale, double fx, double fy, double fz) {
-        double th = Math.toRadians(bodyYaw), cos = Math.cos(th), sin = Math.sin(th);
-        double lx = pt.x / 16.0 * scale;
-        double uy = (pt.y + 16) / 16.0 * scale;
-        double fzz = pt.z / 16.0 * scale;
-        return new Vec3(fx + lx * cos + fzz * (-sin), fy + uy, fz + lx * sin + fzz * cos);
-    }
-
-    /** 면 기하: o=좌상단, ue/ve=가로/세로 모서리 벡터(텍셀). Paint3DScreen와 동일. */
-    private static Vec3[] faceGeo(int part, int face) {
-        int[] b = BOXES[part];
-        double hx = b[3] / 2.0, hy = b[4] / 2.0, hz = b[5] / 2.0;
-        double bx = b[0], by = b[1], bz = b[2];
-        return switch (face) {
-            case 0 -> new Vec3[]{new Vec3(bx - hx, by + hy, bz + hz), new Vec3(2 * hx, 0, 0), new Vec3(0, -2 * hy, 0)};
-            case 1 -> new Vec3[]{new Vec3(bx + hx, by + hy, bz - hz), new Vec3(-2 * hx, 0, 0), new Vec3(0, -2 * hy, 0)};
-            case 2 -> new Vec3[]{new Vec3(bx + hx, by + hy, bz + hz), new Vec3(0, 0, -2 * hz), new Vec3(0, -2 * hy, 0)};
-            case 3 -> new Vec3[]{new Vec3(bx - hx, by + hy, bz - hz), new Vec3(0, 0, 2 * hz), new Vec3(0, -2 * hy, 0)};
-            case 4 -> new Vec3[]{new Vec3(bx - hx, by + hy, bz - hz), new Vec3(2 * hx, 0, 0), new Vec3(0, 0, 2 * hz)};
-            default -> new Vec3[]{new Vec3(bx - hx, by - hy, bz + hz), new Vec3(2 * hx, 0, 0), new Vec3(0, 0, -2 * hz)};
-        };
+        return null;
     }
 
     private void sync() {
