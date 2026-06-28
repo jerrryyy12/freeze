@@ -87,6 +87,7 @@ public class CamoEditState {
         pixels = null;          // 다음에 색칠 화면을 열면 빈 캔버스
         undoStack.clear();
         camoOn = false;
+        Freecam.disable();                                    // 자유 시점 → 내 캐릭터 시점으로 복귀
         Minecraft mc = Minecraft.getInstance();
         if (mc.player != null) {
             CamoClient.apply(mc.player.getUUID(), null);      // 내 위장 텍스처 제거
