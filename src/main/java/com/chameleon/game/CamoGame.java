@@ -264,20 +264,35 @@ public class CamoGame {
             double oy = (Math.random() * 2 - 1) * SHOTGUN_SPREAD;
             Vec3 dir = look.add(right.scale(ox)).add(up.scale(oy)).normalize();
             Vec3 end = eye.add(dir.scale(SHOTGUN_REACH));
-            AABB box = shooter.getBoundingBox().expandTowards(dir.scale(SHOTGUN_REACH)).inflate(1.0);
-            EntityHitResult hit = ProjectileUtil.getEntityHitResult(shooter, eye, end, box,
-                    e -> e instanceof ServerPlayer tp
-                            && roles.get(tp.getUUID()) == Role.HIDER && !tp.isSpectator(),
-                    SHOTGUN_REACH * SHOTGUN_REACH);
-            if (hit != null && hit.getEntity() instanceof ServerPlayer target) {
-                hitTargets.add(target);
+            // 직접 명중 판정: 누운 사람은 낮고 넓은 판정 상자로(실제 히트박스는 못 바꿔도 총은 맞게)
+            ServerPlayer best = null;
+            double bestT = Double.MAX_VALUE;
+            for (ServerPlayer tp : server.getPlayerList().getPlayers()) {
+                if (roles.get(tp.getUUID()) != Role.HIDER || tp.isSpectator()) continue;
+                java.util.Optional<Vec3> clip = hitAabb(tp).clip(eye, end);
+                if (clip.isPresent()) {
+                    double t = clip.get().distanceToSqr(eye);
+                    if (t < bestT) { bestT = t; best = tp; }
+                }
             }
+            if (best != null) hitTargets.add(best);
         }
         shooter.level().playSound(null, shooter.blockPosition(),
                 SoundEvents.GENERIC_EXPLODE.value(), SoundSource.PLAYERS, 0.6f, 1.6f);
         for (ServerPlayer target : hitTargets) {
             eliminate(server, target);
         }
+    }
+
+    /** 총 명중 판정 상자. 누운 이모트(8/9)면 낮고 넓은 슬랩(누운 몸 위치), 아니면 실제 박스. */
+    private static AABB hitAabb(ServerPlayer p) {
+        int emote = com.chameleon.EmoteStore.emoteOf(p.getUUID());
+        if (emote == 8 || emote == 9) {
+            double x = p.getX(), y = p.getY(), z = p.getZ(), s = Math.max(0.3, p.getScale());
+            double half = 0.9 * s, h = 0.6 * s;
+            return new AABB(x - half, y, z - half, x + half, y + h, z + half);
+        }
+        return p.getBoundingBox().inflate(0.1);
     }
 
     private static void eliminate(MinecraftServer server, ServerPlayer hider) {
