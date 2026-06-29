@@ -68,6 +68,29 @@ def make_reader():
     raise RuntimeError("no RSSI source available:\n  " + "\n  ".join(errors))
 
 
+def probe(n: int = 6) -> None:
+    """Quick backend check (~2s) so you don't wait 24s to find a problem."""
+    reader, backend = make_reader()
+    print(f"RSSI source: {backend}\n")
+    samples, t0 = [], time.time()
+    for i in range(n):
+        t = time.time()
+        r = reader()
+        print(f"  read {i+1}: {r} dBm   ({(time.time()-t)*1000:.0f} ms)")
+        samples.append(r)
+    rate = n / max(1e-6, time.time() - t0)
+    valid = [s for s in samples if s is not None]
+    print(f"\nEffective rate ~{rate:.1f} Hz, {len(valid)}/{n} valid readings")
+    if backend == "system_profiler":
+        print("\n>> Slow backend. Install the fast one for a usable capture:")
+        print("   python3 -m pip install pyobjc-framework-CoreWLAN")
+    if not valid:
+        print("\n>> No RSSI. Enable Location Services for your terminal app and")
+        print("   confirm you are on WiFi (not Ethernet).")
+    elif rate >= 3:
+        print("\n>> Looks good. Run the real capture:  python3 log_rssi_mac.py")
+
+
 def phase_for(frac: float) -> str:
     if frac < 1 / 3:
         return "STILL  (stand out of the path)"
@@ -79,6 +102,10 @@ def phase_for(frac: float) -> str:
 def capture(seconds: float, hz: float, out: str) -> None:
     reader, backend = make_reader()
     print(f"RSSI source: {backend}\n")
+    if backend == "system_profiler":
+        print("WARNING: slow backend (~1 read / 10s) -> you'll get too few samples.")
+        print("Strongly recommended first:")
+        print("  python3 -m pip install pyobjc-framework-CoreWLAN\n")
     interval = 1.0 / hz
     rows, last_phase = [], None
     t0 = time.time()
@@ -107,8 +134,14 @@ def capture(seconds: float, hz: float, out: str) -> None:
 
     arr = np.asarray(rows)
     np.savetxt(out, arr, delimiter=",", fmt="%.3f")
-    print(f"\nWrote {len(rows)} samples (~{len(rows)/seconds:.1f} Hz) to {out}")
-    print(f"Now run:  python3 rssi_demo.py {out}")
+    rate = len(rows) / seconds
+    print(f"\nWrote {len(rows)} samples (~{rate:.1f} Hz) to {out}")
+    if len(rows) < 20:
+        print("\n>> Too few samples for reliable detection. Almost certainly the")
+        print("   slow system_profiler backend. Install the fast one and retry:")
+        print("   python3 -m pip install pyobjc-framework-CoreWLAN")
+        print("   (check it first with:  python3 log_rssi_mac.py --check )")
+    print(f"\nNow run:  python3 rssi_demo.py {out}")
 
 
 def write_fake(out: str) -> None:
@@ -130,9 +163,12 @@ def main() -> None:
     ap.add_argument("--hz", type=float, default=10.0, help="target sample rate")
     ap.add_argument("--out", default="rssi_log.csv", help="output CSV path")
     ap.add_argument("--fake", action="store_true", help="offline self-test, no WiFi")
+    ap.add_argument("--check", action="store_true", help="quick backend probe (~2s)")
     args = ap.parse_args()
     if args.fake:
         write_fake(args.out)
+    elif args.check:
+        probe()
     else:
         capture(args.seconds, args.hz, args.out)
 
