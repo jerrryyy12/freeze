@@ -88,6 +88,19 @@ def generate(cfg: SceneConfig) -> tuple[np.ndarray, np.ndarray]:
     return csi, t
 
 
+def csi_to_rssi(csi: np.ndarray, baseline_dbm: float = -45.0) -> np.ndarray:
+    """Collapse per-subcarrier CSI into a single RSSI time series (dBm).
+
+    RSSI is the *aggregate* received power across all subcarriers -- exactly what
+    a phone reports. This is why RSSI is a weaker sensing signal than CSI: it
+    throws away the per-subcarrier detail. Returned values are recentred to look
+    like a realistic indoor RSSI (median ~ ``baseline_dbm``).
+    """
+    power = (np.abs(csi) ** 2).sum(axis=1)
+    rssi = 10.0 * np.log10(power + 1e-12)
+    return rssi - np.median(rssi) + baseline_dbm
+
+
 def demo_scene(seed: int | None = 0) -> SceneConfig:
     """A 12 s scene: still -> slow walk -> still -> fast wave -> still."""
     return SceneConfig(

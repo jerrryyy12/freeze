@@ -24,6 +24,9 @@ class DetectorConfig:
     baseline_factor: float = 4.0
     # Doppler band edges (Hz) separating still / slow / fast
     slow_fast_split_hz: float = 2.0
+    # FFT window for the dominant-Doppler feature (shrink these for low-rate RSSI)
+    doppler_frame: int = 64
+    doppler_hop: int = 16
 
 
 @dataclass
@@ -44,7 +47,9 @@ def run(csi: np.ndarray, cfg: DetectorConfig) -> Detection:
     amp = preprocess.clean_amplitude(csi)
 
     energy, e_idx = features.motion_energy(amp, frame=cfg.energy_frame, hop=cfg.energy_hop)
-    doppler, d_idx = features.dominant_doppler(amp, fs=cfg.fs)
+    doppler, d_idx = features.dominant_doppler(
+        amp, fs=cfg.fs, frame=min(cfg.doppler_frame, amp.shape[0]), hop=cfg.doppler_hop
+    )
 
     base = _baseline_energy(energy)
     threshold = base * cfg.baseline_factor

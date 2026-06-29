@@ -39,6 +39,18 @@ simulator / io_formats   ->  preprocess        ->  features            ->  detec
 | `csi_pipeline/features.py` | Sliding-window motion energy and dominant-Doppler frequency |
 | `csi_pipeline/detect.py` | Threshold motion detection + coarse activity classification |
 
+## Test on real signals with NO extra hardware
+
+No ESP32? Log **RSSI** from a device you already own (Windows laptop or Android
+phone) and run it through the same detector. RSSI is coarser than CSI — gross
+motion only — but it's real radio data. Full guide: [`docs/phone_rssi.md`](docs/phone_rssi.md).
+
+```cmd
+python rssi_demo.py                              # preview (simulated phone view)
+python rssi_demo.py examples\sample_rssi_log.csv # bundled ~5 Hz sample
+python rssi_demo.py rssi_log.csv                 # your own capture
+```
+
 ## Using real CSI data
 
 Replace the `simulator.generate(...)` call in `demo.py` with a loader:

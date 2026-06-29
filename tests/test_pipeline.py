@@ -59,6 +59,31 @@ def test_npz_roundtrip(tmp_path=None):
     assert np.allclose(loaded, csi)
 
 
+def test_rssi_path_detects_motion():
+    # collapse a CSI scene to RSSI (what a phone sees) and run detection
+    cfg = simulator.demo_scene(seed=0)
+    csi, _ = simulator.generate(cfg)
+    rssi = simulator.csi_to_rssi(csi)
+    csi1 = io_formats.rssi_to_csi(rssi)
+    assert csi1.shape == (csi.shape[0], 1)
+    det = detect.run(csi1, detect.DetectorConfig(fs=cfg.sample_rate_hz, energy_frame=20))
+    in_walk = (det.time_s >= 3.0) & (det.time_s <= 5.0)
+    assert det.moving[in_walk].any()
+
+
+def test_load_rssi_csv_infers_rate(tmp_path=None):
+    import tempfile, os
+    n, fs = 50, 5.0
+    ts = np.arange(n) / fs
+    rssi = -45 + np.random.RandomState(0).randn(n)
+    d = tempfile.mkdtemp()
+    p = os.path.join(d, "rssi.csv")
+    np.savetxt(p, np.column_stack([ts, rssi]), delimiter=",")
+    csi, got_fs = io_formats.load_rssi_csv(p)
+    assert csi.shape == (n, 1)
+    assert abs(got_fs - fs) < 0.1
+
+
 def test_motion_energy_windows_align():
     amp = np.random.RandomState(0).rand(200, 30)
     energy, centers = features.motion_energy(amp, frame=20, hop=10)
