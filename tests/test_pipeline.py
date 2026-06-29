@@ -84,6 +84,18 @@ def test_load_rssi_csv_infers_rate(tmp_path=None):
     assert abs(got_fs - fs) < 0.1
 
 
+def test_mac_logger_fake_roundtrip():
+    import tempfile, os
+    import log_rssi_mac
+    d = tempfile.mkdtemp()
+    p = os.path.join(d, "rssi_log.csv")
+    log_rssi_mac.write_fake(p)
+    csi, fs = io_formats.load_rssi_csv(p)
+    assert csi.shape[1] == 1 and csi.shape[0] > 10
+    det = detect.run(csi, detect.DetectorConfig(fs=fs, energy_frame=max(6, int(fs))))
+    assert det.moving.any()  # the synthesized scene contains motion
+
+
 def test_motion_energy_windows_align():
     amp = np.random.RandomState(0).rand(200, 30)
     energy, centers = features.motion_energy(amp, frame=20, hop=10)

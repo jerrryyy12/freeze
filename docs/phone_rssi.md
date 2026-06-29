@@ -45,6 +45,29 @@ Note: `netsh` updates roughly ~1 Hz, so this is the coarsest option — good for
 
 ---
 
+## Option A2 — macOS laptop (MacBook)
+
+macOS removed the old `airport` CLI, so use the bundled logger. From the repo
+folder:
+
+```bash
+# optional but recommended for a fast, accurate signal:
+pip3 install pyobjc-framework-CoreWLAN
+
+# guided 24s capture (it prompts STILL / MOVE / STILL) -> rssi_log.csv
+python3 log_rssi_mac.py
+
+# then analyse:
+python3 rssi_demo.py rssi_log.csv
+```
+
+If it captures 0 samples, macOS is gating WiFi info: **System Settings >
+Privacy & Security > Location Services > enable your terminal app** (Terminal or
+iTerm), and make sure you're on WiFi, not Ethernet. Without the PyObjC package it
+falls back to `system_profiler` (works, but only ~1 Hz — keep movements large).
+
+Dry-run with no WiFi at all:  `python3 log_rssi_mac.py --fake`
+
 ## Option B — Android phone (better sample rate)
 
 Needs **Termux** + **Termux:API** (install both from **F-Droid**, not the Play
