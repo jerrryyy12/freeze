@@ -75,9 +75,9 @@ public class ChameleonNet {
         CHANNEL.send(new EmotePacket(null, emoteId), PacketDistributor.SERVER.noArg());
     }
 
-    /** 서버 → 특정 플레이어: 게임 페이즈 + 남은 시간 + 역할 */
-    public static void sendGameState(ServerPlayer player, int phase, int secondsLeft, int role) {
-        CHANNEL.send(new GameStatePacket(phase, secondsLeft, role), PacketDistributor.PLAYER.with(player));
+    /** 서버 → 특정 플레이어: 게임 페이즈 + 남은 시간 + 역할 + 감염모드 */
+    public static void sendGameState(ServerPlayer player, int phase, int secondsLeft, int role, boolean infection) {
+        CHANNEL.send(new GameStatePacket(phase, secondsLeft, role, infection), PacketDistributor.PLAYER.with(player));
     }
 
     /** 서버 → 모든 클라이언트 */

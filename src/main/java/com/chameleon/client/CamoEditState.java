@@ -42,6 +42,7 @@ public class CamoEditState {
     public static int localRole = 0;          // 내 역할: 0없음 1숨는사람 2술래
     public static boolean hideNames = false;  // 닉네임 숨김(숨기/찾기 페이즈)
     public static int gameSecondsLeft = 0;    // HUD 타이머용 남은 시간
+    public static boolean infectionMode = false; // 감염 모드(숨는 사람끼리 안 보임)
     public static final List<Integer> palette = new ArrayList<>();
 
     /** 부위별 베이스(전개도) 영역 — 회색 캔버스로 채울 곳. */

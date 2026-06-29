@@ -57,6 +57,11 @@ public class CamoGame {
     // 숨는 사람이 준비시간에 고른 크기 배율(0.5/0.7/1.0)
     private static final Map<UUID, Double> chosenScale = new HashMap<>();
 
+    // 감염 모드: 잡히면 탈락 대신 술래가 됨 + 숨는 사람끼리 서로 안 보임
+    private static boolean infectionMode = false;
+    public static void setInfectionMode(boolean b) { infectionMode = b; }
+    public static boolean isInfectionMode() { return infectionMode; }
+
     // 커스텀 설정(명령어로 변경) — 숨기/공개/기본 찾기 시간(초)
     private static int hideSeconds = 180;
     private static int revealSeconds = 30;
@@ -101,7 +106,7 @@ public class CamoGame {
     /** 게임 상태를 각 플레이어에게(역할 포함) 전송. */
     private static void broadcastState(MinecraftServer server, int seconds) {
         for (ServerPlayer p : server.getPlayerList().getPlayers())
-            ChameleonNet.sendGameState(p, phaseId(), seconds, roleIdOf(p));
+            ChameleonNet.sendGameState(p, phaseId(), seconds, roleIdOf(p), infectionMode);
     }
 
     public static int[] start(MinecraftServer server, int seekSeconds) {
@@ -276,10 +281,35 @@ public class CamoGame {
     }
 
     private static void eliminate(MinecraftServer server, ServerPlayer hider) {
-        hider.setGameMode(GameType.SPECTATOR);
-        buriedTicks.remove(hider.getUUID());
-        server.getPlayerList().broadcastSystemMessage(
-                Component.literal("§c" + hider.getName().getString() + " 발견됨! (탈락)"), false);
+        if (infectionMode) {
+            convertToSeeker(server, hider);
+            server.getPlayerList().broadcastSystemMessage(
+                    Component.literal("§c" + hider.getName().getString() + " 감염됨! → 술래"), false);
+        } else {
+            hider.setGameMode(GameType.SPECTATOR);
+            buriedTicks.remove(hider.getUUID());
+            server.getPlayerList().broadcastSystemMessage(
+                    Component.literal("§c" + hider.getName().getString() + " 발견됨! (탈락)"), false);
+        }
+    }
+
+    /** 감염: 숨는 사람을 술래로 전환(위장 해제 + 총·발광·팀, 보통 크기). */
+    private static void convertToSeeker(MinecraftServer server, ServerPlayer p) {
+        roles.put(p.getUUID(), Role.SEEKER);
+        buriedTicks.remove(p.getUUID());
+        CamoStore.set(p.getUUID(), null);
+        setAttr(p, Attributes.SCALE, 1.0);
+        setAttr(p, Attributes.MOVEMENT_SPEED, NORMAL_SPEED);
+        AttributeInstance maxH = p.getAttribute(Attributes.MAX_HEALTH);
+        if (maxH != null) maxH.setBaseValue(20.0);
+        p.setHealth(20.0f);
+        p.setInvulnerable(false);
+        p.getInventory().add(new ItemStack(ChameleonItems.GUN.get()));
+        p.addEffect(new MobEffectInstance(MobEffects.GLOWING, GLOW_FOREVER, 0, false, false));
+        ServerScoreboard sb = server.getScoreboard();
+        sb.addPlayerToTeam(p.getScoreboardName(), seekerTeam(sb));
+        p.displayClientMessage(Component.literal("§c감염! 이제 당신도 술래입니다 — 남은 사람을 잡으세요"), true);
+        broadcastState(server, secondsLeft());
     }
 
     /**

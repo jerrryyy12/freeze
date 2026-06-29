@@ -30,6 +30,7 @@ public class EmoteRenderer {
 
     @SubscribeEvent
     public static void onRenderPlayerPre(RenderPlayerEvent.Pre event) {
+        if (event.isCanceled()) return; // 이미 숨겨진(감염 모드) 플레이어면 렌더하지 않음
         if (!(event.getEntity() instanceof AbstractClientPlayer player)) return;
         int emote = EmoteState.emoteOf(player.getUUID());
         if (emote < 0) return;

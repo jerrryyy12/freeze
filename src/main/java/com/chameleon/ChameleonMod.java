@@ -53,7 +53,7 @@ public class ChameleonMod {
         if (event.getEntity() instanceof ServerPlayer sp) {
             CamoStore.onLogin(sp);
             EmoteStore.onLogin(sp);
-            ChameleonNet.sendGameState(sp, CamoGame.phaseId(), CamoGame.secondsLeft(), CamoGame.roleIdOf(sp));
+            ChameleonNet.sendGameState(sp, CamoGame.phaseId(), CamoGame.secondsLeft(), CamoGame.roleIdOf(sp), CamoGame.isInfectionMode());
         }
     }
 

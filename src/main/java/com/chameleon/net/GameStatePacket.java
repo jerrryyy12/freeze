@@ -15,24 +15,27 @@ public class GameStatePacket {
     public final int phase;
     public final int secondsLeft;
     public final int role;
+    public final boolean infection;
 
-    public GameStatePacket(int phase, int secondsLeft, int role) {
+    public GameStatePacket(int phase, int secondsLeft, int role, boolean infection) {
         this.phase = phase;
         this.secondsLeft = secondsLeft;
         this.role = role;
+        this.infection = infection;
     }
 
     public static void encode(GameStatePacket m, FriendlyByteBuf buf) {
         buf.writeVarInt(m.phase);
         buf.writeVarInt(m.secondsLeft);
         buf.writeVarInt(m.role);
+        buf.writeBoolean(m.infection);
     }
 
     public static GameStatePacket decode(FriendlyByteBuf buf) {
         try {
-            return new GameStatePacket(buf.readVarInt(), buf.readVarInt(), buf.readVarInt());
+            return new GameStatePacket(buf.readVarInt(), buf.readVarInt(), buf.readVarInt(), buf.readBoolean());
         } catch (Exception e) {
-            return new GameStatePacket(0, 0, 0); // 버전 불일치 등 → 안전 기본값(연결 유지)
+            return new GameStatePacket(0, 0, 0, false); // 버전 불일치 등 → 안전 기본값(연결 유지)
         }
     }
 
@@ -46,6 +49,7 @@ public class GameStatePacket {
             CamoEditState.hideNames = (m.phase >= 1 && m.phase <= 3); // 준비/숨기/찾기엔 닉네임 숨김
             CamoEditState.gameSecondsLeft = m.secondsLeft;
             CamoEditState.localRole = m.role;
+            CamoEditState.infectionMode = m.infection;
             if (wasActive && m.phase == 0) {
                 CamoEditState.resetForGameEnd(); // 게임 종료 → 그린 것 초기화 + 원래 스킨
             }

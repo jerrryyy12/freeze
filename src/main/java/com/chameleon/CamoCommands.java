@@ -38,6 +38,9 @@ public class CamoCommands {
                                 .executes(ctx -> setTime(ctx.getSource(), "reveal", IntegerArgumentType.getInteger(ctx, "seconds")))))
                         .then(Commands.literal("seek").then(Commands.argument("seconds", IntegerArgumentType.integer(1, 3600))
                                 .executes(ctx -> setTime(ctx.getSource(), "seek", IntegerArgumentType.getInteger(ctx, "seconds"))))))
+                .then(Commands.literal("mode").requires(s -> s.hasPermission(2))
+                        .then(Commands.literal("infection").executes(ctx -> setMode(ctx.getSource(), true)))
+                        .then(Commands.literal("normal").executes(ctx -> setMode(ctx.getSource(), false))))
                 .then(Commands.literal("game")
                         .then(Commands.literal("start").requires(s -> s.hasPermission(2))
                                 .executes(ctx -> gameStart(ctx.getSource(), CamoGame.getDefaultSeekSeconds()))
@@ -58,6 +61,14 @@ public class CamoCommands {
         int[] c = CamoGame.start(src.getServer(), seconds);
         src.sendSuccess(() -> Component.literal("§a게임 시작! 숨는 사람 " + c[0] + "명, 술래 " + c[1] + "명 · 숨기 3분 + 찾기 " + seconds + "초"), true);
         if (c[1] == 0) src.sendSuccess(() -> Component.literal("§e※ 술래(빨간 양털) 없음 — 빨간 양털 위에서 시작하세요."), false);
+        return 1;
+    }
+
+    private static int setMode(CommandSourceStack src, boolean infection) {
+        CamoGame.setInfectionMode(infection);
+        src.sendSuccess(() -> Component.literal(infection
+                ? "§a감염 모드 ON — 잡히면 술래가 됩니다. 숨는 사람끼리는 서로 안 보여요."
+                : "§7일반 모드 — 잡히면 탈락(관전)."), true);
         return 1;
     }
 
