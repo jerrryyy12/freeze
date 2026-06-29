@@ -19,6 +19,12 @@ public class EmoteStore {
         ChameleonNet.broadcast(new EmotePacket(id, emoteId));
     }
 
+    /** 그 플레이어의 이모트 id (없으면 -1). */
+    public static int emoteOf(UUID id) {
+        Integer v = EMOTES.get(id);
+        return v == null ? -1 : v;
+    }
+
     /** 접속자에게 현재 모든 이모트 상태 전송. */
     public static void onLogin(ServerPlayer joiner) {
         for (Map.Entry<UUID, Integer> e : EMOTES.entrySet()) {
