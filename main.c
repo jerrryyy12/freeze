@@ -254,6 +254,7 @@ typedef struct {
     // 빛/연료
     int   light_on;              // 손전등 on/off
     float fuel;                  // 0..100
+    float stamina;               // 0..100, 달리기 소모 → 질주 거리 제한
     int   fov_r;                 // 이번 프레임 실제 시야 반경(렌더용)
     Vec   batt[MAX_BATT];        // 배터리 픽업
     int   batt_alive[MAX_BATT];
@@ -279,12 +280,24 @@ static void reset_floor(Game *g) {
     Vec start = generate_map();
     g->px = start.x; g->py = start.y;
 
+    // 탈출구: 플레이어에서 가장 먼 곳 → 층을 가로지르는 긴 여정
     dijkstra_from(g->px, g->py);
-    Vec chaser = farthest();
-    g->cx = chaser.x; g->cy = chaser.y;
-
-    dijkstra_from(g->cx, g->cy);
+    static int distP[MAP_H][MAP_W];
+    for (int y = 0; y < MAP_H; y++)
+        for (int x = 0; x < MAP_W; x++) distP[y][x] = dist[y][x];
     g->exit = farthest();
+
+    // 추격자: 플레이어↔탈출구 경로의 병목(양쪽에서 가장 먼 지점)에 매복 → 관문
+    dijkstra_from(g->exit.x, g->exit.y);
+    Vec chaser = {g->px, g->py};
+    int best = -1;
+    for (int y = 0; y < MAP_H; y++)
+        for (int x = 0; x < MAP_W; x++) {
+            if (map[y][x] != 1 || distP[y][x] >= INF || dist[y][x] >= INF) continue;
+            int score = distP[y][x] < dist[y][x] ? distP[y][x] : dist[y][x];
+            if (score > best) { best = score; chaser = (Vec){x, y}; }
+        }
+    g->cx = chaser.x; g->cy = chaser.y;
 
     // 배터리 배치 (플레이어 도달 가능 타일에서 무작위)
     dijkstra_from(g->px, g->py);
@@ -309,6 +322,7 @@ static void reset_floor(Game *g) {
 
     g->light_on = 1;
     g->fuel = 60.0f;
+    g->stamina = 100.0f;
     g->fov_r = FOV_MAX;
 
     compute_fov(g->px, g->py, FOV_MAX);
@@ -357,8 +371,9 @@ static void chaser_step(Game *g) {
 }
 
 static float chaser_delay(Game *g) {
-    float base = (g->state == HUNT_LOCKON) ? 0.11f :
-                 (g->state == HUNT_NOISE)  ? 0.17f : 0.26f;
+    float base = (g->state == HUNT_LOCKON) ? 0.080f :   // 봄: 달리기와 동급 이상 → 시야 끊어야 산다
+                 (g->state == HUNT_NOISE)  ? 0.090f :    // 들림: 소음=서서히 좁혀옴(시끄러움의 비용)
+                 0.26f;                                  // 놓침: 느림 → 무음이면 따돌린다
     float escal = 1.0f - g->floor_time * 0.006f;
     if (escal < 0.55f) escal = 0.55f;
     return base * escal;
@@ -420,11 +435,8 @@ int main(void) {
             if (lit) {
                 g.fuel -= 3.2f * dt;                 // 켜면 연료 소모
                 if (g.fuel < 0.0f) g.fuel = 0.0f;
-                // 빛이 추격자를 끌어당김 (숨어 있을 땐 새어나가지 않음)
-                if (!g.hidden) {
-                    g.noise_src = (Vec){g.px, g.py};
-                    if (g.noise_timer < 0.6f) g.noise_timer = 0.6f;
-                }
+                // 빛이 추격자를 끌어당김 = 원거리 시야선에 노출(chaser_step의 lit 락온).
+                // 시야만 끊으면 따돌릴 수 있으므로 상시 소음 비콘은 두지 않는다.
             }
 
             // ---------- 이번 프레임 시야 반경 (연료 낮으면 깜빡·축소) ----------
@@ -443,8 +455,11 @@ int main(void) {
             g.fov_r = R;
 
             // ---------- 입력 & 이동 모드 ----------
-            int running  = IsKeyDown(KEY_LEFT_SHIFT)   || IsKeyDown(KEY_RIGHT_SHIFT);
+            int want_run = IsKeyDown(KEY_LEFT_SHIFT)   || IsKeyDown(KEY_RIGHT_SHIFT);
             int sneaking = IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL);
+            int running  = want_run && g.stamina > 0.0f;   // 스태미나 없으면 못 뜀
+            if (running) { g.stamina -= 34.0f * dt; if (g.stamina < 0.0f) g.stamina = 0.0f; }
+            else         { g.stamina += 14.0f * dt; if (g.stamina > 100.0f) g.stamina = 100.0f; }
             float pdelay = running ? 0.075f : sneaking ? 0.19f : 0.12f;
 
             int mvx = 0, mvy = 0, pressed = 0;
@@ -599,7 +614,12 @@ int main(void) {
         DrawRectangle(bx, by, fw, 8, fc);
         DrawText(g.light_on ? "FLASHLIGHT" : "dark", bx + bw + 8, by - 3, 12,
                  g.light_on ? (Color){210,190,90,255} : (Color){90,90,100,255});
-        DrawText(TextFormat("DECOY x%d", g.decoys), bx, by + 14, 12, (Color){120,180,255,255});
+        // 스태미나 바
+        int sy = by + 12;
+        DrawRectangle(bx, sy, bw, 6, (Color){35,35,40,255});
+        int sw = (int)(bw * g.stamina / 100.0f); if (sw < 0) sw = 0;
+        DrawRectangle(bx, sy, sw, 6, (Color){90,180,150,255});
+        DrawText(TextFormat("DECOY x%d", g.decoys), bx, sy + 10, 12, (Color){120,180,255,255});
 
         // 숨기 상태/프롬프트
         {
