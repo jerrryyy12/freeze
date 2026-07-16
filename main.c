@@ -31,6 +31,7 @@
 #define FOV_MAX     8          // 시야 최대 반경(배열/원형 판정 상한)
 #define INF         (1<<28)
 #define MAX_BATT    4
+#define MAX_HIDE    3
 #define PI2         6.2831853f
 #define SR          22050      // 오디오 샘플레이트
 
@@ -257,6 +258,15 @@ typedef struct {
     Vec   batt[MAX_BATT];        // 배터리 픽업
     int   batt_alive[MAX_BATT];
     int   nbatt;
+
+    // 아이템/숨기
+    Vec   facing;                // 마지막 이동 방향(미끼 던질 방향)
+    int   decoys;               // 남은 미끼 수
+    float decoy_flash;          // 착탄 표시 잔광
+    Vec   decoy_pos;
+    Vec   hide[MAX_HIDE];        // 은신처(로커)
+    int   nhide;
+    int   hidden;               // 숨어 있는가
 } Game;
 
 static int cheby(int x0, int y0, int x1, int y1) {
@@ -280,6 +290,13 @@ static void reset_floor(Game *g) {
     dijkstra_from(g->px, g->py);
     g->nbatt = 3;
     for (int i = 0; i < g->nbatt; i++) { g->batt[i] = random_reachable(); g->batt_alive[i] = 1; }
+    g->nhide = MAX_HIDE;
+    for (int i = 0; i < g->nhide; i++) g->hide[i] = random_reachable();
+
+    g->facing = (Vec){0, -1};
+    g->decoys = 2;
+    g->decoy_flash = 0.0f;
+    g->hidden = 0;
 
     g->noise_timer = 0.0f;
     g->has_last = 0;
@@ -307,7 +324,8 @@ static void chaser_step(Game *g) {
     Vec target;
     // 어두우면(손전등 off/연료 0) 근접해야만 시야로 들킴. 켜져 있으면 원거리도 들킴.
     int lit = g->light_on && g->fuel > 0.0f;
-    int see = line_of_sight(g->cx, g->cy, g->px, g->py) &&
+    int see = !g->hidden &&                              // 숨으면 시야로 안 들킴
+              line_of_sight(g->cx, g->cy, g->px, g->py) &&
               (lit || cheby(g->cx, g->cy, g->px, g->py) <= 4);
 
     if (see) {
@@ -374,20 +392,46 @@ int main(void) {
         if (!g.caught) {
             g.floor_time += dt;
 
+            // ---------- 숨기(로커): 은신처 위에서 E → 시야·탐지 차단하고 버티기 ----------
+            int on_hide = 0;
+            for (int i = 0; i < g.nhide; i++)
+                if (g.px == g.hide[i].x && g.py == g.hide[i].y) on_hide = 1;
+            if (IsKeyPressed(KEY_E) && on_hide) g.hidden = !g.hidden;
+
+            // ---------- 미끼 던지기: 바라보는 방향으로 소음원을 날려 추격자를 유인 ----------
+            if (IsKeyPressed(KEY_Q) && g.decoys > 0 && !g.hidden) {
+                int lx = g.px, ly = g.py;
+                for (int s = 0; s < 6; s++) {        // 벽에 막힐 때까지 최대 6칸 날아감
+                    int nx = lx + g.facing.x, ny = ly + g.facing.y;
+                    if (!is_floor(nx, ny)) break;
+                    lx = nx; ly = ny;
+                }
+                g.noise_src = (Vec){lx, ly};
+                g.noise_timer = 4.0f;                // 달리기(3s)보다 강한 유인
+                g.decoy_pos = (Vec){lx, ly};
+                g.decoy_flash = 0.7f;
+                g.decoys--;
+            }
+            if (g.decoy_flash > 0.0f) g.decoy_flash -= dt;
+
             // ---------- 손전등 토글 ----------
             if (IsKeyPressed(KEY_F) && g.fuel > 0.0f) g.light_on = !g.light_on;
             int lit = g.light_on && g.fuel > 0.0f;
             if (lit) {
                 g.fuel -= 3.2f * dt;                 // 켜면 연료 소모
                 if (g.fuel < 0.0f) g.fuel = 0.0f;
-                // 빛이 추격자를 끌어당김: 켜져 있으면 늘 옅은 소음 흔적을 남김
-                g.noise_src = (Vec){g.px, g.py};
-                if (g.noise_timer < 0.6f) g.noise_timer = 0.6f;
+                // 빛이 추격자를 끌어당김 (숨어 있을 땐 새어나가지 않음)
+                if (!g.hidden) {
+                    g.noise_src = (Vec){g.px, g.py};
+                    if (g.noise_timer < 0.6f) g.noise_timer = 0.6f;
+                }
             }
 
             // ---------- 이번 프레임 시야 반경 (연료 낮으면 깜빡·축소) ----------
             int R;
-            if (lit) {
+            if (g.hidden) {
+                R = 3;                               // 로커 틈새 시야
+            } else if (lit) {
                 R = FOV_MAX;
                 if (g.fuel < 20.0f) {                // 저연료 플리커
                     R = 6;
@@ -417,7 +461,8 @@ int main(void) {
                 else if (IsKeyDown(KEY_D) || IsKeyDown(KEY_RIGHT)) { mvx =  1; pressed = 1; }
             }
 
-            if (pressed && g.move_timer <= 0.0f) {
+            if (pressed && !g.hidden) g.facing = (Vec){mvx, mvy};   // 미끼 던질 방향 갱신
+            if (pressed && !g.hidden && g.move_timer <= 0.0f) {
                 int nx = g.px + mvx, ny = g.py + mvy;
                 if (is_floor(nx, ny)) {
                     g.px = nx; g.py = ny;
@@ -448,7 +493,7 @@ int main(void) {
                 chaser_step(&g);
                 g.chaser_timer = chaser_delay(&g);
                 if (g.cx != ocx || g.cy != ocy) av_footstep++;   // 발소리 트리거
-                if (g.cx == g.px && g.cy == g.py) g.caught = 1;
+                if (!g.hidden && g.cx == g.px && g.cy == g.py) g.caught = 1;
             }
             if (g.cx == g.px && g.cy == g.py) g.caught = 1;
         }
@@ -489,6 +534,25 @@ int main(void) {
                 DrawRectangle(g.batt[i].x*TILE+6, g.batt[i].y*TILE+5, TILE-12, TILE-10,
                               (Color){70,200,220,255});
 
+        // 은신처(로커) — 강청색 틀
+        for (int i = 0; i < g.nhide; i++) {
+            int hx = g.hide[i].x, hy = g.hide[i].y;
+            if (visible[hy][hx] || explored[hy][hx] || debug) {
+                int on = visible[hy][hx] || debug;
+                DrawRectangleLines(hx*TILE+3, hy*TILE+2, TILE-6, TILE-3,
+                    on ? (Color){120,140,210,255} : (Color){40,48,80,255});
+                DrawRectangle(hx*TILE+9, hy*TILE+5, 3, TILE-9,
+                    on ? (Color){120,140,210,220} : (Color){40,48,80,180});
+            }
+        }
+
+        // 미끼 착탄 잔광 (플레이어 행동 피드백)
+        if (g.decoy_flash > 0.0f) {
+            float a = g.decoy_flash / 0.7f;
+            DrawCircle(g.decoy_pos.x*TILE+TILE/2, g.decoy_pos.y*TILE+TILE/2,
+                       6.0f + 10.0f*(1.0f-a), (Color){120,180,255,(unsigned char)(180*a)});
+        }
+
         // 탈출구
         if (visible[g.exit.y][g.exit.x] || explored[g.exit.y][g.exit.x] || debug) {
             int on = (visible[g.exit.y][g.exit.x] || debug);
@@ -502,8 +566,11 @@ int main(void) {
             DrawRectangle(g.cx*TILE+6, g.cy*TILE+6, TILE-12, TILE-12, (Color){255,120,120,255});
         }
 
-        // 플레이어
-        DrawRectangle(g.px*TILE+3, g.py*TILE+3, TILE-6, TILE-6, (Color){220,210,120,255});
+        // 플레이어 (숨으면 어둑하게)
+        {
+            Color pc = g.hidden ? (Color){110,120,90,255} : (Color){220,210,120,255};
+            DrawRectangle(g.px*TILE+3, g.py*TILE+3, TILE-6, TILE-6, pc);
+        }
 
         // ---------- 근접 비네트: 추격자가 가까울수록 화면 가장자리가 붉게 맥동 ----------
         {
@@ -532,8 +599,25 @@ int main(void) {
         DrawRectangle(bx, by, fw, 8, fc);
         DrawText(g.light_on ? "FLASHLIGHT" : "dark", bx + bw + 8, by - 3, 12,
                  g.light_on ? (Color){210,190,90,255} : (Color){90,90,100,255});
+        DrawText(TextFormat("DECOY x%d", g.decoys), bx, by + 14, 12, (Color){120,180,255,255});
 
-        DrawText("Shift:run  Ctrl:sneak  F:light  R:restart  Tab:debug",
+        // 숨기 상태/프롬프트
+        {
+            int oh = 0;
+            for (int i = 0; i < g.nhide; i++)
+                if (g.px == g.hide[i].x && g.py == g.hide[i].y) oh = 1;
+            if (g.hidden) {
+                const char *h = "HIDDEN  -  E to leave";
+                int w = MeasureText(h, 18);
+                DrawText(h, (MAP_W*TILE - w)/2, MAP_H*TILE - 50, 18, (Color){150,170,220,255});
+            } else if (oh) {
+                const char *h = "E: hide";
+                int w = MeasureText(h, 16);
+                DrawText(h, (MAP_W*TILE - w)/2, MAP_H*TILE - 48, 16, (Color){120,140,200,220});
+            }
+        }
+
+        DrawText("WASD move  Shift:run  Ctrl:sneak  F:light  Q:decoy  E:hide  R:restart",
                  8, MAP_H*TILE - 22, 14, (Color){80,80,88,255});
 
         if (debug) {

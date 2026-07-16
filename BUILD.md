@@ -47,5 +47,6 @@ clang main.c -o game   -Os    -I"$RL" -L"$RL" -lraylib -framework OpenGL -framew
 | Week 1 스캐폴드 | 902,600 B | 61.2% |
 | Week 2 추격자 | 906,696 B | 61.5% |
 | Week 3 오디오+빛 (raylib 슬림) | 1,194,040 B | 81.0% |
+| Week 4 아이템+숨기 | 1,198,136 B | 81.3% |
 
-여유 ~274KB. 최후 버퍼로 UPX(자체 압축) 사용 가능. Windows exe는 별도 실측 필요(백엔드 상이).
+여유 ~270KB. 최후 버퍼로 UPX(자체 압축) 사용 가능. Windows exe는 별도 실측 필요(백엔드 상이).
