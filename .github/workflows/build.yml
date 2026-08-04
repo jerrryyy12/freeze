@@ -1,0 +1,65 @@
+name: Build Windows Installer
+
+# main 에 태그(v1.0 등)를 올리거나, 수동 실행 시 빌드
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:  # Actions 탭에서 수동 실행 버튼
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      # 1) 소스 체크아웃
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # 2) Flutter 설치
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      # 3) 의존성 받기
+      - name: Get dependencies
+        run: flutter pub get
+
+      # 4) Windows 릴리스 빌드
+      - name: Build Windows
+        run: flutter build windows --release
+
+      # 5) adb(platform-tools) 다운로드해서 Release 폴더에 동봉
+      - name: Bundle adb
+        run: |
+          Invoke-WebRequest -Uri "https://dl.google.com/android/repository/platform-tools-latest-windows.zip" -OutFile "platform-tools.zip"
+          Expand-Archive -Path "platform-tools.zip" -DestinationPath "temp-adb"
+          Copy-Item -Path "temp-adb\platform-tools" -Destination "build\windows\x64\runner\Release\platform-tools" -Recurse
+        shell: pwsh
+
+      # 6) Inno Setup 설치 (Chocolatey)
+      - name: Install Inno Setup
+        run: choco install innosetup -y
+        shell: pwsh
+
+      # 7) 설치 마법사 컴파일
+      - name: Build installer
+        run: |
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "installer\installer.iss"
+        shell: pwsh
+
+      # 8) 완성된 설치 마법사를 아티팩트로 업로드
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: PhoneInspector-Setup
+          path: installer\Output\*.exe
+
+      # 9) 태그 푸시면 릴리스에도 자동 첨부
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: installer\Output\*.exe
