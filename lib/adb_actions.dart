@@ -30,48 +30,39 @@ class AdbActions {
   /// 삼성 기기는 기본 음악 플레이어가 이 인텐트를 받아 자동 재생합니다.
   Future<AdbActionResult> speakerTest(String serial) async {
     // 1) 미디어 볼륨을 최대로 (best-effort — 명령 없으면 무시)
-    await _run(serial, ['shell', 'media', 'volume', '--stream', '3', '--set', '15']);
-    await _run(serial, ['shell', 'cmd', 'media_session', 'volume', '--stream', '3', '--set', '15']);
+    await _run(
+        serial, ['shell', 'media', 'volume', '--stream', '3', '--set', '15']);
 
-    // 2) 기기에 있는 벨소리/알림음 파일 하나 찾기
-    String? sound;
-    for (final dir in const [
-      '/system/media/audio/ringtones',
-      '/product/media/audio/ringtones',
-      '/system/media/audio/notifications',
-      '/system/media/audio/alarms',
-    ]) {
-      final ls = await _run(serial, ['shell', 'ls', dir]);
-      final matches = ls
-          .split('\n')
-          .map((e) => e.trim())
-          .where((e) =>
-              e.endsWith('.ogg') || e.endsWith('.mp3') || e.endsWith('.wav'))
-          .toList();
-      if (matches.isNotEmpty) {
-        sound = '$dir/${matches.first}';
-        break;
-      }
-    }
-    if (sound == null) {
+    // 2) 벨소리 경로가 기종마다 달라서 find 로 기기 전체 미디어 폴더에서 검색
+    final out = await _run(serial, [
+      'shell', 'find',
+      '/system/media/audio', '/product/media/audio',
+      '/system_ext/media/audio', '/system/product/media/audio',
+      '/my_product/media/audio', '/prism/media/audio',
+      '-type', 'f', '-name', '*.ogg',
+    ]);
+    final files = out
+        .split('\n')
+        .map((e) => e.trim())
+        .where((e) => e.startsWith('/') && e.endsWith('.ogg'))
+        .toList();
+    if (files.isEmpty) {
       return AdbActionResult(
         ok: false,
-        message: '재생할 소리 파일을 못 찾았습니다. 삼성 테스트(*#0*#) 메뉴의 스피커 항목을 이용하세요.',
+        message: '스피커 소리 파일을 못 찾았습니다. 삼성 테스트(*#0*#) 메뉴의 스피커 항목을 이용하세요.',
       );
     }
 
-    // 3) 미디어 뷰어로 재생 (삼성 뮤직 등이 자동 재생)
-    final ext = sound.split('.').last.toLowerCase();
-    final mime = ext == 'mp3'
-        ? 'audio/mpeg'
-        : ext == 'wav'
-            ? 'audio/wav'
-            : 'audio/ogg';
+    // 3) 미디어 뷰어로 재생 (삼성 뮤직 등이 자동 재생). '벨소리'류를 우선 선택.
+    final sound = files.firstWhere(
+      (f) => f.toLowerCase().contains('ringtone'),
+      orElse: () => files.first,
+    );
     final r = await _run(serial, [
       'shell', 'am', 'start',
       '-a', 'android.intent.action.VIEW',
       '-d', 'file://$sound',
-      '-t', mime,
+      '-t', 'audio/ogg',
     ]);
     final ok = !_failed(r);
     return AdbActionResult(
