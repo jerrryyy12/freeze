@@ -1,0 +1,24 @@
+# Flutter/Dart
+.dart_tool/
+.packages
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+pubspec.lock
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# adb 동봉 (빌드 시 자동 다운로드하므로 커밋 안 함)
+platform-tools/
+temp-adb/
+*.zip
+
+# Inno Setup 출력
+installer/Output/
+
+# OS
+.DS_Store
+Thumbs.db
