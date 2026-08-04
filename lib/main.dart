@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import 'adb_actions.dart';
 import 'adb_auto_diagnostics.dart';
+import 'inspect_server.dart';
 import 'sensor_labels.dart';
 
 /// adb 경로 해석.
@@ -38,10 +39,6 @@ String resolveAdbPath() {
 
   return 'adb'; // 최후: 시스템 PATH
 }
-
-/// 폰 브라우저로 여는 검사 페이지 (액정 색상·스피커 사이렌·터치).
-/// GitHub Pages 로 호스팅됨 (repo 의 docs/inspect.html).
-const String kInspectUrl = 'https://jerrryyy12.github.io/freeze/inspect.html';
 
 void main() {
   runApp(const InspectorApp());
@@ -564,8 +561,12 @@ class _DashboardPageState extends State<DashboardPage> {
                         runSpacing: 8,
                         children: [
                           OutlinedButton.icon(
-                            onPressed: () => runAction(() => _actions
-                                .openWebInspector(device.serial, kInspectUrl)),
+                            onPressed: () => runAction(() async {
+                              final port =
+                                  await InspectServer.instance.ensureStarted();
+                              return _actions.openLocalInspector(
+                                  device.serial, port);
+                            }),
                             icon: const Icon(Icons.smartphone, size: 16),
                             label: const Text('폰 화면·소리 검사'),
                           ),
@@ -579,7 +580,7 @@ class _DashboardPageState extends State<DashboardPage> {
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        '폰 화면·소리 검사: 폰 브라우저에 검사 페이지가 열립니다 → 색상화면(액정)·사이렌(스피커)·터치를 폰에서 직접 확인. (검수장 와이파이 인터넷 필요)',
+                        '폰 화면·소리 검사: 폰 브라우저에 검사 페이지가 열립니다 → 색상화면(액정)·사이렌(스피커)·터치를 폰에서 직접 확인. (USB로 연결되어 인터넷 불필요)',
                         style: TextStyle(
                             fontSize: 11, color: Colors.grey.shade600),
                       ),

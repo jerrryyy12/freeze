@@ -15,18 +15,29 @@ class AdbActions {
 
   /// 폰 브라우저로 검사 페이지 열기 (액정 색상·스피커 소리·터치 검사).
   ///
-  /// 미디어 볼륨을 최대로 올린 뒤, 폰 기본 브라우저에 검사 페이지를 띄웁니다.
-  /// 검수원이 폰 화면에서 직접 색상·소리·터치를 확인합니다.
-  /// (검수장 와이파이에 인터넷이 있어야 페이지가 열립니다)
-  Future<AdbActionResult> openWebInspector(String serial, String url) async {
-    // 스피커 사이렌이 크게 들리도록 미디어 볼륨 최대 (best-effort)
+  /// PC 로컬 서버(InspectServer)가 [port] 에 검사 페이지를 제공하고 있고,
+  /// adb reverse 로 폰의 localhost:port 를 그 서버로 터널링한 뒤, 폰 브라우저를
+  /// http://localhost:port 로 엽니다. 인터넷·와이파이·GitHub Pages 없이 USB 만으로
+  /// 동작하며, localhost 라 웹오디오(사이렌)도 정상 재생됩니다.
+  Future<AdbActionResult> openLocalInspector(String serial, int port) async {
+    // 1) 폰 localhost:port → PC localhost:port (USB 터널)
+    final rev = await _run(serial, ['reverse', 'tcp:$port', 'tcp:$port']);
+    if (_failed(rev)) {
+      return AdbActionResult(
+        ok: false,
+        message: 'USB 터널 연결 실패: ${rev.trim()}',
+      );
+    }
+
+    // 2) 스피커 사이렌이 크게 들리도록 미디어 볼륨 최대 (best-effort)
     await _run(
         serial, ['shell', 'media', 'volume', '--stream', '3', '--set', '15']);
 
+    // 3) 폰 기본 브라우저로 검사 페이지 열기
     final r = await _run(serial, [
       'shell', 'am', 'start',
       '-a', 'android.intent.action.VIEW',
-      '-d', url,
+      '-d', 'http://localhost:$port/',
     ]);
     final ok = r.contains('Starting') || (!_failed(r) && !r.contains('Error'));
     return AdbActionResult(
