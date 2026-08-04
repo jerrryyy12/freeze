@@ -518,21 +518,21 @@ class _DashboardPageState extends State<DashboardPage> {
                           ),
                           OutlinedButton.icon(
                             onPressed: () => runAction(
+                                () => _actions.speakerTest(device.serial)),
+                            icon: const Icon(Icons.volume_up, size: 16),
+                            label: const Text('스피커 소리'),
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: () => runAction(
                                 () => _actions.vibrate(device.serial)),
                             icon: const Icon(Icons.vibration, size: 16),
                             label: const Text('진동'),
-                          ),
-                          OutlinedButton.icon(
-                            onPressed: () =>
-                                _runVolumeDetect(dialogContext, device),
-                            icon: const Icon(Icons.volume_up, size: 16),
-                            label: const Text('볼륨 버튼 감지'),
                           ),
                         ],
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        '삼성 테스트 메뉴에서 색상화면(액정)·사이렌음(스피커)·수화부·진동을 확인하세요.',
+                        '삼성 테스트(*#0*#): 색상화면(액정)·수화부·터치. 스피커·진동은 옆 버튼으로 바로 실행됩니다.',
                         style: TextStyle(
                             fontSize: 11, color: Colors.grey.shade600),
                       ),
@@ -638,36 +638,6 @@ class _DashboardPageState extends State<DashboardPage> {
                 color: selected ? color : Colors.grey.shade700,
                 fontWeight:
                     selected ? FontWeight.w600 : FontWeight.normal)),
-      ),
-    );
-  }
-
-  /// 볼륨 버튼 감지 — 실시간 다이얼로그.
-  Future<void> _runVolumeDetect(BuildContext ctx, DeviceEntry device) async {
-    showDialog(
-      context: ctx,
-      barrierDismissible: false,
-      builder: (_) => const AlertDialog(
-        content: Row(
-          children: [
-            SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(strokeWidth: 2)),
-            SizedBox(width: 16),
-            Expanded(child: Text('볼륨 위·아래 버튼을 눌러보세요… (약 6초)')),
-          ],
-        ),
-      ),
-    );
-    final result = await _actions.detectVolumeKeys(device.serial);
-    if (!ctx.mounted) return;
-    Navigator.pop(ctx); // 진행 다이얼로그 닫기
-    ScaffoldMessenger.of(ctx).showSnackBar(
-      SnackBar(
-        content: Text('볼륨 위 ${result.up ? "감지 ✓" : "감지 안 됨 ✗"} · '
-            '아래 ${result.down ? "감지 ✓" : "감지 안 됨 ✗"}'),
-        duration: const Duration(seconds: 3),
       ),
     );
   }
