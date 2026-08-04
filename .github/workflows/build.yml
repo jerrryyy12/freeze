@@ -1,37 +1,45 @@
-name: Build Windows Installer
+name: Build Installers (Windows + macOS)
 
-# main 에 태그(v1.0 등)를 올리거나, 수동 실행 시 빌드
+# 태그(v1.0 등)를 올리거나 Actions 탭에서 수동 실행 시 빌드.
+# - Windows: exe 설치 마법사 (adb 동봉, 플루터/SDK 불필요)
+# - macOS:   .app 앱 (zip)
 on:
   push:
     tags:
       - 'v*'
-  workflow_dispatch:  # Actions 탭에서 수동 실행 버튼
+  workflow_dispatch: # Actions 탭에서 수동 실행 버튼
 
 jobs:
+  # ────────────────────────────────────────────────
+  # Windows — exe 설치 마법사
+  # ────────────────────────────────────────────────
   build-windows:
     runs-on: windows-latest
-
     steps:
-      # 1) 소스 체크아웃
       - name: Checkout
         uses: actions/checkout@v4
 
-      # 2) Flutter 설치
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: stable
           cache: true
 
-      # 3) 의존성 받기
+      # repo 에는 lib/ 와 pubspec 만 있으므로, windows/ 플랫폼 폴더를 생성.
+      # (기존 lib/·pubspec 은 건드리지 않고 플랫폼 스캐폴딩만 추가)
+      - name: Generate windows platform files
+        run: |
+          flutter config --enable-windows-desktop
+          flutter create --project-name phone_inspector --platforms=windows .
+        shell: pwsh
+
       - name: Get dependencies
         run: flutter pub get
 
-      # 4) Windows 릴리스 빌드
-      - name: Build Windows
+      - name: Build Windows (release)
         run: flutter build windows --release
 
-      # 5) adb(platform-tools) 다운로드해서 Release 폴더에 동봉
+      # adb(platform-tools) 다운로드해서 Release 폴더에 동봉
       - name: Bundle adb
         run: |
           Invoke-WebRequest -Uri "https://dl.google.com/android/repository/platform-tools-latest-windows.zip" -OutFile "platform-tools.zip"
@@ -39,27 +47,90 @@ jobs:
           Copy-Item -Path "temp-adb\platform-tools" -Destination "build\windows\x64\runner\Release\platform-tools" -Recurse
         shell: pwsh
 
-      # 6) Inno Setup 설치 (Chocolatey)
+      # Visual C++ 런타임 DLL 동봉 — VC 재배포가 없는 PC 에서도 실행되도록.
+      - name: Bundle VC++ runtime
+        run: |
+          $rel = "build\windows\x64\runner\Release"
+          foreach ($dll in @("vcruntime140.dll","vcruntime140_1.dll","msvcp140.dll")) {
+            $src = Join-Path $env:WINDIR "System32\$dll"
+            if (Test-Path $src) { Copy-Item $src -Destination $rel -Force }
+          }
+        shell: pwsh
+
       - name: Install Inno Setup
         run: choco install innosetup -y
         shell: pwsh
 
-      # 7) 설치 마법사 컴파일
       - name: Build installer
         run: |
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "installer\installer.iss"
         shell: pwsh
 
-      # 8) 완성된 설치 마법사를 아티팩트로 업로드
-      - name: Upload installer
+      - name: Upload installer artifact
         uses: actions/upload-artifact@v4
         with:
-          name: PhoneInspector-Setup
+          name: PhoneInspector-Windows-Setup
           path: installer\Output\*.exe
 
-      # 9) 태그 푸시면 릴리스에도 자동 첨부
       - name: Attach to release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           files: installer\Output\*.exe
+
+  # ────────────────────────────────────────────────
+  # macOS — .app 앱 (zip)
+  # ────────────────────────────────────────────────
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      # macos/ 플랫폼 폴더 생성
+      - name: Generate macos platform files
+        run: |
+          flutter config --enable-macos-desktop
+          flutter create --project-name phone_inspector --platforms=macos .
+
+      # 샌드박스 비활성화 — 앱이 adb(외부 프로세스)를 실행할 수 있어야 함.
+      # (서명 없는 사내 데모용. 정식 배포 시엔 서명/공증 필요)
+      - name: Disable app sandbox (for adb subprocess)
+        run: |
+          for f in macos/Runner/Release.entitlements macos/Runner/DebugProfile.entitlements; do
+            if [ -f "$f" ]; then
+              /usr/libexec/PlistBuddy -c "Set :com.apple.security.app-sandbox false" "$f" \
+                || /usr/libexec/PlistBuddy -c "Add :com.apple.security.app-sandbox bool false" "$f"
+            fi
+          done
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Build macOS (release)
+        run: flutter build macos --release
+
+      # .app 을 zip 으로 압축 (전송·배포용)
+      - name: Zip .app
+        run: |
+          cd build/macos/Build/Products/Release
+          APP=$(ls -d *.app | head -n1)
+          ditto -c -k --sequesterRsrc --keepParent "$APP" "PhoneInspector-macOS.zip"
+
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: PhoneInspector-macOS
+          path: build/macos/Build/Products/Release/PhoneInspector-macOS.zip
+
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build/macos/Build/Products/Release/PhoneInspector-macOS.zip

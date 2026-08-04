@@ -2,19 +2,41 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 
+import 'adb_actions.dart';
 import 'adb_auto_diagnostics.dart';
+import 'sensor_labels.dart';
 
 /// adb 경로 해석.
-/// 설치본은 실행파일 옆 platform-tools\adb 를, 없으면 시스템 adb 를 사용.
+/// 1) 설치본: 실행파일 옆 platform-tools\adb (Windows 동봉본)
+/// 2) macOS/Linux: GUI 앱은 셸 PATH가 제한적이라 흔한 설치 경로를 직접 탐색
+///    (brew / Android SDK 위치) — 그래야 맥에서 시스템 adb 를 찾음
+/// 3) 최후: 시스템 PATH 의 adb
 String resolveAdbPath() {
+  final sep = Platform.pathSeparator;
+  // 1) 실행파일 옆 동봉 adb
   try {
     final exeDir = File(Platform.resolvedExecutable).parent.path;
-    final sep = Platform.pathSeparator;
     final exe = Platform.isWindows ? 'adb.exe' : 'adb';
     final bundled = '$exeDir${sep}platform-tools$sep$exe';
     if (File(bundled).existsSync()) return bundled;
   } catch (_) {}
-  return 'adb'; // 개발 중이거나 동봉 adb 없으면 시스템 adb
+
+  // 2) macOS/Linux 흔한 설치 경로 (GUI 앱 PATH 문제 회피)
+  if (!Platform.isWindows) {
+    final home = Platform.environment['HOME'] ?? '';
+    final candidates = [
+      '/opt/homebrew/bin/adb', // macOS Apple Silicon (brew)
+      '/usr/local/bin/adb', // macOS Intel (brew)
+      '$home/Library/Android/sdk/platform-tools/adb', // macOS Android SDK
+      '$home/Android/Sdk/platform-tools/adb', // Linux Android SDK
+      '/usr/bin/adb',
+    ];
+    for (final c in candidates) {
+      if (c.isNotEmpty && File(c).existsSync()) return c;
+    }
+  }
+
+  return 'adb'; // 최후: 시스템 PATH
 }
 
 void main() {
@@ -38,19 +60,64 @@ class InspectorApp extends StatelessWidget {
   }
 }
 
+/// 육안 검수 항목 정의.
+class ManualItem {
+  const ManualItem(this.key, this.label, {this.hint});
+  final String key;
+  final String label;
+  final String? hint;
+}
+
+/// 모든 폰 공통 육안 항목. (S펜은 지원 기종에만 별도 추가)
+const List<ManualItem> kBaseManualItems = [
+  ManualItem('lcd', '액정', hint: '데드픽셀·잔상(번인)·멍·줄'),
+  ManualItem('camera', '카메라', hint: '전·후면 렌즈, 촬영 화질'),
+  ManualItem('fingerprint', '지문 인식', hint: '등록·인식 동작'),
+  ManualItem('speaker', '스피커', hint: '소리 재생·잡음'),
+  ManualItem('mic', '마이크·수화부', hint: '녹음·통화 음성'),
+  ManualItem('volume_buttons', '볼륨 버튼', hint: '위·아래 물리 버튼'),
+];
+
+const ManualItem kSpenItem = ManualItem('spen', 'S펜', hint: '필압·그리기·버튼');
+
 /// 폰 한 대의 검사 상태.
 class DeviceEntry {
   final String serial;
   String model;
   bool testing;
-  List<Map<String, dynamic>> results;
+  List<Map<String, dynamic>> results; // adb 자동 검사 결과
+  bool? spenSupported; // S펜 지원 기종 여부 (null = 미확인)
+  Map<String, String> manual; // 육안 판정: key -> 'pass' | 'fail'
 
   DeviceEntry({
     required this.serial,
     this.model = '',
     this.testing = false,
     this.results = const [],
-  });
+    this.spenSupported,
+    Map<String, String>? manual,
+  }) : manual = manual ?? {};
+
+  /// 이 기기에 적용되는 육안 항목 (S펜 지원 시 S펜 포함).
+  List<ManualItem> get manualItems => [
+        ...kBaseManualItems,
+        if (spenSupported == true) kSpenItem,
+      ];
+
+  bool get autoDone => results.isNotEmpty;
+  bool get anyAutoFail => results.any((r) => r['pass'] != true);
+  bool get anyManualFail => manual.values.any((v) => v == 'fail');
+  bool get allManualDecided =>
+      manualItems.every((it) => manual.containsKey(it.key));
+  bool get allAutoPass => autoDone && !anyAutoFail;
+
+  /// 종합 상태: none(미검사) / fail(불량) / pass(통과) / progress(진행중)
+  String get overallStatus {
+    if (!autoDone && manual.isEmpty) return 'none';
+    if (anyAutoFail || anyManualFail) return 'fail';
+    if (allAutoPass && allManualDecided) return 'pass';
+    return 'progress';
+  }
 }
 
 class DashboardPage extends StatefulWidget {
@@ -63,6 +130,7 @@ class DashboardPage extends StatefulWidget {
 class _DashboardPageState extends State<DashboardPage> {
   final String _adbPath = resolveAdbPath();
   late final AdbAutoDiagnostics _diag = AdbAutoDiagnostics(adbPath: _adbPath);
+  late final AdbActions _actions = AdbActions(adbPath: _adbPath);
   List<DeviceEntry> _devices = [];
   bool _scanning = false;
 
@@ -88,12 +156,29 @@ class _DashboardPageState extends State<DashboardPage> {
       final serial = trimmed.split(RegExp(r'\s+')).first;
       final model =
           RegExp(r'model:(\S+)').firstMatch(trimmed)?.group(1) ?? serial;
-      found.add(DeviceEntry(serial: serial, model: model.replaceAll('_', ' ')));
+
+      // 기존에 있던 기기면 검수 상태(자동·육안)를 유지
+      final existing = _devices.where((d) => d.serial == serial);
+      if (existing.isNotEmpty) {
+        found.add(existing.first);
+      } else {
+        found.add(
+            DeviceEntry(serial: serial, model: model.replaceAll('_', ' ')));
+      }
     }
     setState(() {
       _devices = found;
       _scanning = false;
     });
+
+    // S펜 지원 여부는 백그라운드로 확인 (아직 확인 안 된 기기만)
+    for (final d in found) {
+      if (d.spenSupported == null) {
+        _actions.supportsSpen(d.serial).then((v) {
+          if (mounted) setState(() => d.spenSupported = v);
+        });
+      }
+    }
   }
 
   /// 특정 폰에 자동 검사 실행.
@@ -106,7 +191,7 @@ class _DashboardPageState extends State<DashboardPage> {
     });
   }
 
-  /// 전체 폰에 검사 실행.
+  /// 전체 폰에 자동 검사 실행.
   Future<void> _runAll() async {
     for (final d in _devices) {
       await _runTests(d);
@@ -136,7 +221,7 @@ class _DashboardPageState extends State<DashboardPage> {
             child: FilledButton.icon(
               onPressed: _devices.isEmpty ? null : _runAll,
               icon: const Icon(Icons.play_arrow),
-              label: const Text('전체 검사'),
+              label: const Text('전체 자동검사'),
             ),
           ),
         ],
@@ -173,8 +258,8 @@ class _DashboardPageState extends State<DashboardPage> {
       padding: const EdgeInsets.all(16),
       child: GridView.builder(
         gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-          maxCrossAxisExtent: 320,
-          childAspectRatio: 1.1,
+          maxCrossAxisExtent: 340,
+          childAspectRatio: 0.92,
           crossAxisSpacing: 12,
           mainAxisSpacing: 12,
         ),
@@ -216,7 +301,7 @@ class _DashboardPageState extends State<DashboardPage> {
                 _statusBadge(device),
               ],
             ),
-            const Divider(height: 20),
+            const Divider(height: 18),
             Expanded(
               child: device.testing
                   ? const Center(
@@ -226,12 +311,46 @@ class _DashboardPageState extends State<DashboardPage> {
                           child: CircularProgressIndicator(strokeWidth: 2)))
                   : device.results.isEmpty
                       ? Center(
-                          child: OutlinedButton(
-                            onPressed: () => _runTests(device),
-                            child: const Text('검사 시작'),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              OutlinedButton(
+                                onPressed: () => _runTests(device),
+                                child: const Text('자동 검사 시작'),
+                              ),
+                              const SizedBox(height: 8),
+                              const Text('배터리·유심·무선·센서·저장소·시스템',
+                                  style: TextStyle(
+                                      color: Colors.grey, fontSize: 11)),
+                            ],
                           ),
                         )
                       : _resultList(device.results),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                if (device.results.isNotEmpty)
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => _runTests(device),
+                      icon: const Icon(Icons.refresh, size: 16),
+                      label: const Text('재검사'),
+                      style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 8)),
+                    ),
+                  ),
+                if (device.results.isNotEmpty) const SizedBox(width: 8),
+                Expanded(
+                  child: FilledButton.tonalIcon(
+                    onPressed: () => _openInspection(device),
+                    icon: const Icon(Icons.checklist, size: 16),
+                    label: Text(_manualSummaryLabel(device)),
+                    style: FilledButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 8)),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -239,8 +358,16 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
+  /// 육안 버튼에 표시할 진행 요약 (예: "육안 2/7").
+  String _manualSummaryLabel(DeviceEntry device) {
+    final total = device.manualItems.length;
+    final done = device.manual.length;
+    return done == 0 ? '육안 검수' : '육안 $done/$total';
+  }
+
   Widget _resultList(List<Map<String, dynamic>> results) {
     return ListView(
+      padding: EdgeInsets.zero,
       children: results.map((r) {
         final pass = r['pass'] == true;
         final isSensor = r['test'] == 'sensors';
@@ -262,7 +389,8 @@ class _DashboardPageState extends State<DashboardPage> {
                   onTap: () => _showSensorDetail(r),
                   child: const Padding(
                     padding: EdgeInsets.only(left: 4),
-                    child: Icon(Icons.info_outline, size: 15, color: Colors.grey),
+                    child:
+                        Icon(Icons.info_outline, size: 15, color: Colors.grey),
                   ),
                 ),
             ],
@@ -278,22 +406,6 @@ class _DashboardPageState extends State<DashboardPage> {
     final types = (data['presentTypes'] as List?)?.cast<String>() ?? [];
     final total = data['totalHwSensors'];
     final missing = (data['missingEssential'] as List?)?.cast<String>() ?? [];
-
-    // 센서 타입 영문 → 한글 라벨 (알기 쉬운 것만, 나머진 영문 그대로)
-    const labels = {
-      'accelerometer': '가속도',
-      'gyroscope': '자이로',
-      'magnetic_field': '지자기',
-      'light': '조도',
-      'proximity': '근접',
-      'pressure': '기압',
-      'gravity': '중력',
-      'linear_acceleration': '선형가속도',
-      'rotation_vector': '회전벡터',
-      'step_counter': '걸음수',
-      'significant_motion': '유의미한움직임',
-      'game_rotation_vector': '게임회전벡터',
-    };
 
     showDialog(
       context: context,
@@ -323,10 +435,11 @@ class _DashboardPageState extends State<DashboardPage> {
                   separatorBuilder: (_, __) => const Divider(height: 1),
                   itemBuilder: (_, i) {
                     final t = types[i];
-                    final label = labels[t];
+                    final label = kSensorLabels[t];
                     return ListTile(
                       dense: true,
-                      leading: const Icon(Icons.sensors, size: 18, color: Colors.green),
+                      leading: const Icon(Icons.sensors,
+                          size: 18, color: Colors.green),
                       title: Text(label != null ? '$label ($t)' : t,
                           style: const TextStyle(fontSize: 13)),
                     );
@@ -345,14 +458,231 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
+  /// 육안 검수 상세 다이얼로그 — 항목별 정상/불량 판정 + adb 보조 동작.
+  void _openInspection(DeviceEntry device) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            void setManual(String key, String value) {
+              // 같은 값 다시 누르면 판정 취소(미검사로)
+              setState(() {
+                if (device.manual[key] == value) {
+                  device.manual.remove(key);
+                } else {
+                  device.manual[key] = value;
+                }
+              });
+              setDialogState(() {});
+            }
+
+            Future<void> runAction(
+                Future<AdbActionResult> Function() action) async {
+              final r = await action();
+              if (!dialogContext.mounted) return;
+              ScaffoldMessenger.of(dialogContext).showSnackBar(
+                SnackBar(
+                    content: Text(r.message),
+                    duration: const Duration(seconds: 2)),
+              );
+            }
+
+            return AlertDialog(
+              title: Row(
+                children: [
+                  const Icon(Icons.checklist, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text('육안 검수 — ${device.model}')),
+                  _statusBadge(device),
+                ],
+              ),
+              content: SizedBox(
+                width: 460,
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // adb 보조 동작
+                      _sectionTitle('검수 도우미 (폰 화면·기능 띄우기)'),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          OutlinedButton.icon(
+                            onPressed: () => runAction(() =>
+                                _actions.samsungHardwareTest(device.serial)),
+                            icon: const Icon(Icons.phone_android, size: 16),
+                            label: const Text('삼성 테스트(*#0*#)'),
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: () => runAction(
+                                () => _actions.vibrate(device.serial)),
+                            icon: const Icon(Icons.vibration, size: 16),
+                            label: const Text('진동'),
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: () =>
+                                _runVolumeDetect(dialogContext, device),
+                            icon: const Icon(Icons.volume_up, size: 16),
+                            label: const Text('볼륨 버튼 감지'),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        '삼성 테스트 메뉴에서 색상화면(액정)·사이렌음(스피커)·수화부·진동을 확인하세요.',
+                        style: TextStyle(
+                            fontSize: 11, color: Colors.grey.shade600),
+                      ),
+                      const Divider(height: 24),
+
+                      // 육안 판정 항목
+                      _sectionTitle('육안 판정'),
+                      ...device.manualItems.map(
+                          (item) => _manualRow(item, device, setManual)),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    setState(() => device.manual.clear());
+                    setDialogState(() {});
+                  },
+                  child: const Text('육안 초기화'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('완료'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _sectionTitle(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Text(text,
+          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+    );
+  }
+
+  /// 육안 항목 한 줄: 라벨 + 힌트 + 정상/불량 토글.
+  Widget _manualRow(ManualItem item, DeviceEntry device,
+      void Function(String key, String value) setManual) {
+    final value = device.manual[item.key];
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(item.label,
+                    style: const TextStyle(
+                        fontSize: 14, fontWeight: FontWeight.w500)),
+                if (item.hint != null)
+                  Text(item.hint!,
+                      style: TextStyle(
+                          fontSize: 11, color: Colors.grey.shade600)),
+              ],
+            ),
+          ),
+          _choiceButton(
+            label: '정상',
+            selected: value == 'pass',
+            color: Colors.green,
+            onTap: () => setManual(item.key, 'pass'),
+          ),
+          const SizedBox(width: 6),
+          _choiceButton(
+            label: '불량',
+            selected: value == 'fail',
+            color: Colors.red,
+            onTap: () => setManual(item.key, 'fail'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _choiceButton({
+    required String label,
+    required bool selected,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? color.withOpacity(0.15) : null,
+          border: Border.all(
+              color: selected ? color : Colors.grey.shade400,
+              width: selected ? 1.5 : 1),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text(label,
+            style: TextStyle(
+                fontSize: 13,
+                color: selected ? color : Colors.grey.shade700,
+                fontWeight:
+                    selected ? FontWeight.w600 : FontWeight.normal)),
+      ),
+    );
+  }
+
+  /// 볼륨 버튼 감지 — 실시간 다이얼로그.
+  Future<void> _runVolumeDetect(BuildContext ctx, DeviceEntry device) async {
+    showDialog(
+      context: ctx,
+      barrierDismissible: false,
+      builder: (_) => const AlertDialog(
+        content: Row(
+          children: [
+            SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2)),
+            SizedBox(width: 16),
+            Expanded(child: Text('볼륨 위·아래 버튼을 눌러보세요… (약 6초)')),
+          ],
+        ),
+      ),
+    );
+    final result = await _actions.detectVolumeKeys(device.serial);
+    if (!ctx.mounted) return;
+    Navigator.pop(ctx); // 진행 다이얼로그 닫기
+    ScaffoldMessenger.of(ctx).showSnackBar(
+      SnackBar(
+        content: Text('볼륨 위 ${result.up ? "감지 ✓" : "감지 안 됨 ✗"} · '
+            '아래 ${result.down ? "감지 ✓" : "감지 안 됨 ✗"}'),
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
+
   Widget _statusBadge(DeviceEntry device) {
-    if (device.results.isEmpty) {
-      return _badge('미검사', Colors.grey);
+    switch (device.overallStatus) {
+      case 'fail':
+        return _badge('불량', Colors.red);
+      case 'pass':
+        return _badge('통과', Colors.green);
+      case 'progress':
+        return _badge('진행중', Colors.orange);
+      default:
+        return _badge('미검사', Colors.grey);
     }
-    final allPass = device.results.every((r) => r['pass'] == true);
-    return allPass
-        ? _badge('통과', Colors.green)
-        : _badge('불량', Colors.red);
   }
 
   Widget _badge(String text, Color color) {

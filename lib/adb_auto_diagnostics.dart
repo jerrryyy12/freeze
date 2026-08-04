@@ -106,10 +106,10 @@ class AdbAutoDiagnostics {
         'carrier': finalCarrier,
       },
       'message': inserted
-          ? 'SIM 삽입됨${finalCarrier != null && finalCarrier.isNotEmpty ? " · $finalCarrier" : ""}'
+          ? '유심 정상${finalCarrier != null && finalCarrier.isNotEmpty ? " · $finalCarrier" : ""}'
           : absent
-              ? 'SIM 없음'
-              : 'SIM 상태 확인 필요',
+              ? '유심 없음'
+              : '유심 상태 확인 필요',
     };
   }
 
@@ -129,12 +129,12 @@ class AdbAutoDiagnostics {
     final usbPlugged = dump.contains('USB powered: true');
     final wirelessPlugged = dump.contains('Wireless powered: true');
 
-    // health 코드: 2=Good 3=Overheat 4=Dead 5=OverVoltage 6=Failure 7=Cold
+    // health 코드: 2=정상 3=과열 4=수명이상 5=과전압 6=고장 7=저온
     const healthMap = {
-      2: 'Good', 3: 'Overheat', 4: 'Dead',
-      5: 'OverVoltage', 6: 'Failure', 7: 'Cold',
+      2: '정상', 3: '과열', 4: '수명 이상',
+      5: '과전압', 6: '고장', 7: '저온',
     };
-    final health = healthMap[healthCode] ?? 'Unknown';
+    final health = healthMap[healthCode] ?? '확인 불가';
 
     // 판정: health 가 Good 이 아니거나 온도가 45도 넘으면 경고
     final tempOk = temp == null || temp < 45;
@@ -182,9 +182,9 @@ class AdbAutoDiagnostics {
         'bluetooth': bt,
         'nfc': nfc,
       },
-      'message': 'WiFi ${wifi['connected'] == true ? "OK" : "불량"} · '
-          'BT ${bt['available'] == true ? "OK" : "불량"} · '
-          'NFC ${nfc['supported'] != true ? "미지원" : (nfc['alive'] == true ? "OK" : "불량")}',
+      'message': '와이파이 ${wifi['connected'] == true ? "정상" : "불량"} · '
+          '블루투스 ${bt['available'] == true ? "정상" : "불량"} · '
+          'NFC ${nfc['supported'] != true ? "미지원" : (nfc['alive'] == true ? "정상" : "불량")}',
     };
   }
 
