@@ -129,16 +129,19 @@ class AdbAutoDiagnostics {
     final usbPlugged = dump.contains('USB powered: true');
     final wirelessPlugged = dump.contains('Wireless powered: true');
 
-    // health 코드: 2=정상 3=과열 4=수명이상 5=과전압 6=고장 7=저온
+    // health 코드: 1=알 수 없음 2=정상 3=과열 4=수명 이상 5=과전압 6=고장 7=저온
     const healthMap = {
-      2: '정상', 3: '과열', 4: '수명 이상',
+      1: '확인 불가', 2: '정상', 3: '과열', 4: '수명 이상',
       5: '과전압', 6: '고장', 7: '저온',
     };
     final health = healthMap[healthCode] ?? '확인 불가';
 
-    // 판정: health 가 Good 이 아니거나 온도가 45도 넘으면 경고
+    // 판정: 온도 45도 초과 또는 '명백한' 불량 코드일 때만 불량.
+    // 1(알 수 없음)은 판정 불가일 뿐 불량이 아님 — 일부 삼성폰은 adb 로 health 를
+    // 항상 1 로 보고하므로, 이를 불량으로 처리하면 멀쩡한 배터리가 불량이 됨.
+    const badHealth = {3, 4, 5, 6}; // 과열·수명이상·과전압·고장
     final tempOk = temp == null || temp < 45;
-    final healthOk = healthCode == 2 || healthCode == null;
+    final healthOk = healthCode == null || !badHealth.contains(healthCode);
     final pass = tempOk && healthOk;
 
     return {

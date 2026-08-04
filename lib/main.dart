@@ -39,6 +39,10 @@ String resolveAdbPath() {
   return 'adb'; // 최후: 시스템 PATH
 }
 
+/// 폰 브라우저로 여는 검사 페이지 (액정 색상·스피커 사이렌·터치).
+/// GitHub Pages 로 호스팅됨 (repo 의 docs/inspect.html).
+const String kInspectUrl = 'https://jerrryyy12.github.io/freeze/inspect.html';
+
 void main() {
   runApp(const InspectorApp());
 }
@@ -460,6 +464,11 @@ class _DashboardPageState extends State<DashboardPage> {
 
   /// 육안 검수 상세 다이얼로그 — 항목별 정상/불량 판정 + adb 보조 동작.
   void _openInspection(DeviceEntry device) {
+    // 도우미 동작 결과를 다이얼로그 '안'에 표시 (SnackBar 는 다이얼로그 뒤에 떠서 안 보임)
+    String? actionStatus;
+    bool actionOk = true;
+    bool actionBusy = false;
+
     showDialog(
       context: context,
       builder: (dialogContext) {
@@ -479,13 +488,16 @@ class _DashboardPageState extends State<DashboardPage> {
 
             Future<void> runAction(
                 Future<AdbActionResult> Function() action) async {
+              setDialogState(() {
+                actionBusy = true;
+                actionStatus = '실행 중…';
+              });
               final r = await action();
-              if (!dialogContext.mounted) return;
-              ScaffoldMessenger.of(dialogContext).showSnackBar(
-                SnackBar(
-                    content: Text(r.message),
-                    duration: const Duration(seconds: 2)),
-              );
+              setDialogState(() {
+                actionBusy = false;
+                actionOk = r.ok;
+                actionStatus = r.message;
+              });
             }
 
             return AlertDialog(
@@ -504,6 +516,47 @@ class _DashboardPageState extends State<DashboardPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      // 도우미 동작 결과 표시 (다이얼로그 안)
+                      if (actionStatus != null)
+                        Container(
+                          width: double.infinity,
+                          margin: const EdgeInsets.only(bottom: 12),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: (actionBusy
+                                    ? Colors.blueGrey
+                                    : actionOk
+                                        ? Colors.green
+                                        : Colors.red)
+                                .withOpacity(0.10),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            children: [
+                              if (actionBusy)
+                                const SizedBox(
+                                    width: 14,
+                                    height: 14,
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2))
+                              else
+                                Icon(
+                                    actionOk
+                                        ? Icons.check_circle
+                                        : Icons.error,
+                                    size: 16,
+                                    color: actionOk
+                                        ? Colors.green
+                                        : Colors.red),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(actionStatus!,
+                                    style: const TextStyle(fontSize: 12)),
+                              ),
+                            ],
+                          ),
+                        ),
                       // adb 보조 동작
                       _sectionTitle('검수 도우미 (폰 화면·기능 띄우기)'),
                       Wrap(
@@ -511,10 +564,10 @@ class _DashboardPageState extends State<DashboardPage> {
                         runSpacing: 8,
                         children: [
                           OutlinedButton.icon(
-                            onPressed: () => runAction(() =>
-                                _actions.samsungHardwareTest(device.serial)),
-                            icon: const Icon(Icons.phone_android, size: 16),
-                            label: const Text('삼성 테스트(*#0*#)'),
+                            onPressed: () => runAction(() => _actions
+                                .openWebInspector(device.serial, kInspectUrl)),
+                            icon: const Icon(Icons.smartphone, size: 16),
+                            label: const Text('폰 화면·소리 검사'),
                           ),
                           OutlinedButton.icon(
                             onPressed: () => runAction(
@@ -522,17 +575,11 @@ class _DashboardPageState extends State<DashboardPage> {
                             icon: const Icon(Icons.vibration, size: 16),
                             label: const Text('진동'),
                           ),
-                          OutlinedButton.icon(
-                            onPressed: () =>
-                                _runVolumeDetect(dialogContext, device),
-                            icon: const Icon(Icons.volume_up, size: 16),
-                            label: const Text('볼륨 버튼 감지'),
-                          ),
                         ],
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        '삼성 테스트 메뉴에서 색상화면(액정)·사이렌음(스피커)·수화부·진동을 확인하세요.',
+                        '폰 화면·소리 검사: 폰 브라우저에 검사 페이지가 열립니다 → 색상화면(액정)·사이렌(스피커)·터치를 폰에서 직접 확인. (검수장 와이파이 인터넷 필요)',
                         style: TextStyle(
                             fontSize: 11, color: Colors.grey.shade600),
                       ),
@@ -638,36 +685,6 @@ class _DashboardPageState extends State<DashboardPage> {
                 color: selected ? color : Colors.grey.shade700,
                 fontWeight:
                     selected ? FontWeight.w600 : FontWeight.normal)),
-      ),
-    );
-  }
-
-  /// 볼륨 버튼 감지 — 실시간 다이얼로그.
-  Future<void> _runVolumeDetect(BuildContext ctx, DeviceEntry device) async {
-    showDialog(
-      context: ctx,
-      barrierDismissible: false,
-      builder: (_) => const AlertDialog(
-        content: Row(
-          children: [
-            SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(strokeWidth: 2)),
-            SizedBox(width: 16),
-            Expanded(child: Text('볼륨 위·아래 버튼을 눌러보세요… (약 6초)')),
-          ],
-        ),
-      ),
-    );
-    final result = await _actions.detectVolumeKeys(device.serial);
-    if (!ctx.mounted) return;
-    Navigator.pop(ctx); // 진행 다이얼로그 닫기
-    ScaffoldMessenger.of(ctx).showSnackBar(
-      SnackBar(
-        content: Text('볼륨 위 ${result.up ? "감지 ✓" : "감지 안 됨 ✗"} · '
-            '아래 ${result.down ? "감지 ✓" : "감지 안 됨 ✗"}'),
-        duration: const Duration(seconds: 3),
       ),
     );
   }
