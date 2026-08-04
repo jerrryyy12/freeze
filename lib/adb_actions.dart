@@ -23,14 +23,64 @@ class AdbActions {
         '삼성 하드웨어 테스트를 폰 화면에 띄웠습니다.',
       );
 
-  /// 스피커(멜로디) 테스트(*#0289#) — 스피커로 소리를 재생.
+  /// 스피커 소리 재생 — 미디어 볼륨을 최대로 올리고 기기 내장 벨소리를 재생.
   ///
-  /// 삼성 멜로디/오디오 테스트를 SECRET_CODE 로 실행해 스피커 소리를 냅니다.
-  Future<AdbActionResult> speakerTest(String serial) => _secretCode(
-        serial,
-        '0289',
-        '스피커 테스트(멜로디)를 실행했습니다. 폰에서 소리를 확인하세요.',
+  /// 삼성 SECRET_CODE(*#0289# 등)는 최신 One UI 에서 막혀서, 대신 기기에 이미
+  /// 들어있는 벨소리(.ogg) 파일을 미디어 인텐트로 재생합니다. (앱 설치·에셋 불필요)
+  /// 삼성 기기는 기본 음악 플레이어가 이 인텐트를 받아 자동 재생합니다.
+  Future<AdbActionResult> speakerTest(String serial) async {
+    // 1) 미디어 볼륨을 최대로 (best-effort — 명령 없으면 무시)
+    await _run(serial, ['shell', 'media', 'volume', '--stream', '3', '--set', '15']);
+    await _run(serial, ['shell', 'cmd', 'media_session', 'volume', '--stream', '3', '--set', '15']);
+
+    // 2) 기기에 있는 벨소리/알림음 파일 하나 찾기
+    String? sound;
+    for (final dir in const [
+      '/system/media/audio/ringtones',
+      '/product/media/audio/ringtones',
+      '/system/media/audio/notifications',
+      '/system/media/audio/alarms',
+    ]) {
+      final ls = await _run(serial, ['shell', 'ls', dir]);
+      final matches = ls
+          .split('\n')
+          .map((e) => e.trim())
+          .where((e) =>
+              e.endsWith('.ogg') || e.endsWith('.mp3') || e.endsWith('.wav'))
+          .toList();
+      if (matches.isNotEmpty) {
+        sound = '$dir/${matches.first}';
+        break;
+      }
+    }
+    if (sound == null) {
+      return AdbActionResult(
+        ok: false,
+        message: '재생할 소리 파일을 못 찾았습니다. 삼성 테스트(*#0*#) 메뉴의 스피커 항목을 이용하세요.',
       );
+    }
+
+    // 3) 미디어 뷰어로 재생 (삼성 뮤직 등이 자동 재생)
+    final ext = sound.split('.').last.toLowerCase();
+    final mime = ext == 'mp3'
+        ? 'audio/mpeg'
+        : ext == 'wav'
+            ? 'audio/wav'
+            : 'audio/ogg';
+    final r = await _run(serial, [
+      'shell', 'am', 'start',
+      '-a', 'android.intent.action.VIEW',
+      '-d', 'file://$sound',
+      '-t', mime,
+    ]);
+    final ok = !_failed(r);
+    return AdbActionResult(
+      ok: ok,
+      message: ok
+          ? '스피커로 소리를 재생합니다. (안 들리면 폰 화면의 재생 버튼을 눌러주세요)'
+          : '재생 실패: ${r.trim().isEmpty ? "미디어 앱을 열지 못함" : r.trim()}',
+    );
+  }
 
   Future<AdbActionResult> _secretCode(
       String serial, String code, String okMsg) async {

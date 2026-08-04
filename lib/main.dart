@@ -460,6 +460,11 @@ class _DashboardPageState extends State<DashboardPage> {
 
   /// 육안 검수 상세 다이얼로그 — 항목별 정상/불량 판정 + adb 보조 동작.
   void _openInspection(DeviceEntry device) {
+    // 도우미 동작 결과를 다이얼로그 '안'에 표시 (SnackBar 는 다이얼로그 뒤에 떠서 안 보임)
+    String? actionStatus;
+    bool actionOk = true;
+    bool actionBusy = false;
+
     showDialog(
       context: context,
       builder: (dialogContext) {
@@ -479,13 +484,16 @@ class _DashboardPageState extends State<DashboardPage> {
 
             Future<void> runAction(
                 Future<AdbActionResult> Function() action) async {
+              setDialogState(() {
+                actionBusy = true;
+                actionStatus = '실행 중…';
+              });
               final r = await action();
-              if (!dialogContext.mounted) return;
-              ScaffoldMessenger.of(dialogContext).showSnackBar(
-                SnackBar(
-                    content: Text(r.message),
-                    duration: const Duration(seconds: 2)),
-              );
+              setDialogState(() {
+                actionBusy = false;
+                actionOk = r.ok;
+                actionStatus = r.message;
+              });
             }
 
             return AlertDialog(
@@ -504,6 +512,47 @@ class _DashboardPageState extends State<DashboardPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      // 도우미 동작 결과 표시 (다이얼로그 안)
+                      if (actionStatus != null)
+                        Container(
+                          width: double.infinity,
+                          margin: const EdgeInsets.only(bottom: 12),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: (actionBusy
+                                    ? Colors.blueGrey
+                                    : actionOk
+                                        ? Colors.green
+                                        : Colors.red)
+                                .withOpacity(0.10),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            children: [
+                              if (actionBusy)
+                                const SizedBox(
+                                    width: 14,
+                                    height: 14,
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2))
+                              else
+                                Icon(
+                                    actionOk
+                                        ? Icons.check_circle
+                                        : Icons.error,
+                                    size: 16,
+                                    color: actionOk
+                                        ? Colors.green
+                                        : Colors.red),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(actionStatus!,
+                                    style: const TextStyle(fontSize: 12)),
+                              ),
+                            ],
+                          ),
+                        ),
                       // adb 보조 동작
                       _sectionTitle('검수 도우미 (폰 화면·기능 띄우기)'),
                       Wrap(
