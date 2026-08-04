@@ -3,90 +3,37 @@ import 'dart:io';
 
 /// 육안 검수를 돕는 adb 보조 동작 모음.
 ///
-/// 폰에 앱을 설치하지 않으므로, PC의 adb 로 폰의 내장 기능을 호출해
-/// 검수원이 실물을 확인할 수 있게 돕습니다.
-/// - 삼성 하드웨어 테스트(*#0*#): 색상화면(액정)·수화부·터치 등 내장 검사
-/// - 스피커 테스트(*#0289#): 삼성 멜로디 테스트로 스피커 소리 재생
-/// - 진동: 진동 모터 동작 확인
+/// 최신 삼성(One UI)은 adb 의 SECRET_CODE(*#0*#) 브로드캐스트를 막아서
+/// 내장 하드웨어 테스트를 adb 로 띄울 수 없습니다. 그래서 액정 색상화면·
+/// 스피커 사이렌·터치 검사는 '폰 브라우저로 검사 페이지를 여는' 방식으로 처리합니다.
+/// - 검사 페이지 열기: am start 로 폰 기본 브라우저에 검사 페이지(URL) 표시
+/// - 진동: cmd vibrator (기종 무관, adb 로 직접 동작)
 /// - S펜 지원 여부: 디지타이저(S펜) 하드웨어 기능 존재 확인
 class AdbActions {
   AdbActions({this.adbPath = 'adb'});
   final String adbPath;
 
-  /// 삼성 하드웨어 테스트 메뉴(*#0*#) 열기.
+  /// 폰 브라우저로 검사 페이지 열기 (액정 색상·스피커 소리·터치 검사).
   ///
-  /// SECRET_CODE 브로드캐스트로 삼성 내장 종합 테스트를 띄웁니다.
-  /// 액정 단색화면(빨강·초록·파랑 등), 수화부, 터치 등을 확인할 수 있습니다.
-  Future<AdbActionResult> samsungHardwareTest(String serial) => _secretCode(
-        serial,
-        '0',
-        '삼성 하드웨어 테스트를 폰 화면에 띄웠습니다.',
-      );
-
-  /// 스피커 소리 재생 — 미디어 볼륨을 최대로 올리고 기기 내장 벨소리를 재생.
-  ///
-  /// 삼성 SECRET_CODE(*#0289# 등)는 최신 One UI 에서 막혀서, 대신 기기에 이미
-  /// 들어있는 벨소리(.ogg) 파일을 미디어 인텐트로 재생합니다. (앱 설치·에셋 불필요)
-  /// 삼성 기기는 기본 음악 플레이어가 이 인텐트를 받아 자동 재생합니다.
-  Future<AdbActionResult> speakerTest(String serial) async {
-    // 1) 미디어 볼륨을 최대로 (best-effort — 명령 없으면 무시)
+  /// 미디어 볼륨을 최대로 올린 뒤, 폰 기본 브라우저에 검사 페이지를 띄웁니다.
+  /// 검수원이 폰 화면에서 직접 색상·소리·터치를 확인합니다.
+  /// (검수장 와이파이에 인터넷이 있어야 페이지가 열립니다)
+  Future<AdbActionResult> openWebInspector(String serial, String url) async {
+    // 스피커 사이렌이 크게 들리도록 미디어 볼륨 최대 (best-effort)
     await _run(
         serial, ['shell', 'media', 'volume', '--stream', '3', '--set', '15']);
 
-    // 2) 벨소리 경로가 기종마다 달라서 find 로 기기 전체 미디어 폴더에서 검색
-    final out = await _run(serial, [
-      'shell', 'find',
-      '/system/media/audio', '/product/media/audio',
-      '/system_ext/media/audio', '/system/product/media/audio',
-      '/my_product/media/audio', '/prism/media/audio',
-      '-type', 'f', '-name', '*.ogg',
-    ]);
-    final files = out
-        .split('\n')
-        .map((e) => e.trim())
-        .where((e) => e.startsWith('/') && e.endsWith('.ogg'))
-        .toList();
-    if (files.isEmpty) {
-      return AdbActionResult(
-        ok: false,
-        message: '스피커 소리 파일을 못 찾았습니다. 삼성 테스트(*#0*#) 메뉴의 스피커 항목을 이용하세요.',
-      );
-    }
-
-    // 3) 미디어 뷰어로 재생 (삼성 뮤직 등이 자동 재생). '벨소리'류를 우선 선택.
-    final sound = files.firstWhere(
-      (f) => f.toLowerCase().contains('ringtone'),
-      orElse: () => files.first,
-    );
     final r = await _run(serial, [
       'shell', 'am', 'start',
       '-a', 'android.intent.action.VIEW',
-      '-d', 'file://$sound',
-      '-t', 'audio/ogg',
+      '-d', url,
     ]);
-    final ok = !_failed(r);
+    final ok = r.contains('Starting') || (!_failed(r) && !r.contains('Error'));
     return AdbActionResult(
       ok: ok,
       message: ok
-          ? '스피커로 소리를 재생합니다. (안 들리면 폰 화면의 재생 버튼을 눌러주세요)'
-          : '재생 실패: ${r.trim().isEmpty ? "미디어 앱을 열지 못함" : r.trim()}',
-    );
-  }
-
-  Future<AdbActionResult> _secretCode(
-      String serial, String code, String okMsg) async {
-    final r = await _run(serial, [
-      'shell', 'am', 'broadcast',
-      '-a', 'android.provider.Telephony.SECRET_CODE',
-      '-d', 'android_secret_code://$code',
-    ]);
-    // 브로드캐스트가 정상 전달되면 result=0 (Broadcast completed) 이 찍힘
-    final ok = r.contains('Broadcast completed') || r.contains('result=0');
-    return AdbActionResult(
-      ok: ok,
-      message: ok
-          ? okMsg
-          : '실행하지 못했습니다. (삼성 기기가 아니거나 차단됨 — 폰에서 *#$code# 직접 입력)',
+          ? '폰 브라우저에 검사 페이지를 열었습니다. 폰 화면에서 색상·스피커·터치를 확인하세요.'
+          : '페이지를 열지 못했습니다: ${r.trim().isEmpty ? "브라우저 실행 실패" : r.trim()}',
     );
   }
 
@@ -100,7 +47,8 @@ class AdbActions {
         ['shell', 'cmd', 'vibrator_manager', 'synced', '-f', 'oneshot', '$ms']);
     if (_failed(out)) {
       // 2) 구형 : cmd vibrator vibrate -f <ms>
-      out = await _run(serial, ['shell', 'cmd', 'vibrator', 'vibrate', '-f', '$ms']);
+      out = await _run(
+          serial, ['shell', 'cmd', 'vibrator', 'vibrate', '-f', '$ms']);
     }
     final ok = !_failed(out);
     return AdbActionResult(

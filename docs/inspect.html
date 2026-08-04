@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>폰 검수 — 액정·스피커·터치</title>
+<style>
+  * { box-sizing: border-box; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; padding: 0; height: 100%; background: #111; color: #fff;
+    font-family: -apple-system, "Noto Sans KR", "Malgun Gothic", sans-serif; overscroll-behavior: none; }
+  #home { padding: 24px 18px calc(24px + env(safe-area-inset-bottom)); }
+  h1 { font-size: 22px; margin: 4px 0 2px; }
+  .sub { color: #9aa; font-size: 13px; margin-bottom: 20px; }
+  .btn { display: flex; align-items: center; gap: 14px; width: 100%; padding: 20px 18px;
+    margin-bottom: 14px; border: none; border-radius: 16px; background: #1f2a2f; color: #fff;
+    font-size: 19px; font-weight: 600; text-align: left; }
+  .btn .emoji { font-size: 26px; }
+  .btn .desc { display: block; font-size: 12px; font-weight: 400; color: #9aa; margin-top: 3px; }
+  .btn:active { background: #2a3a41; }
+
+  /* 공통 오버레이 화면 */
+  .screen { position: fixed; inset: 0; display: none; z-index: 10; }
+  .screen.on { display: block; }
+  .close { position: fixed; top: calc(10px + env(safe-area-inset-top)); right: 12px; z-index: 30;
+    width: 46px; height: 46px; border-radius: 50%; border: none; background: rgba(0,0,0,.45);
+    color: #fff; font-size: 22px; }
+  .hint { position: fixed; left: 0; right: 0; top: 46%; text-align: center; font-size: 15px;
+    color: rgba(0,0,0,.55); z-index: 20; pointer-events: none; transition: opacity .4s; mix-blend-mode: difference; }
+
+  /* 색상(액정) */
+  #colorFill { position: absolute; inset: 0; background: #fff; }
+  #colorName { position: fixed; left: 0; right: 0; bottom: calc(24px + env(safe-area-inset-bottom));
+    text-align: center; font-size: 14px; color: rgba(128,128,128,.9); z-index: 20; pointer-events: none; }
+
+  /* 스피커 */
+  #speaker { background: #12232b; }
+  #speaker .wrap { position: absolute; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 22px; padding: 20px; }
+  #sirenBtn { width: 200px; height: 200px; border-radius: 50%; border: none; font-size: 22px;
+    font-weight: 700; color: #fff; background: #1d9e75; }
+  #sirenBtn.playing { background: #d9534f; }
+  #speaker .label { font-size: 15px; color: #cfe; text-align: center; }
+
+  /* 터치 */
+  #touch { background: #000; }
+  #touchCanvas { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; }
+  #touchInfo { position: fixed; left: 0; right: 0; top: calc(10px + env(safe-area-inset-top));
+    text-align: center; font-size: 14px; color: #6f6; z-index: 20; pointer-events: none; }
+</style>
+</head>
+<body>
+
+<div id="home">
+  <h1>폰 검수</h1>
+  <div class="sub">검수원 실물 확인용 · 항목을 눌러 검사하세요</div>
+
+  <button class="btn" onclick="openColor()">
+    <span class="emoji">🎨</span>
+    <span>액정 (색상 화면)
+      <span class="desc">단색 화면으로 데드픽셀·잔상(번인)·멍 확인 · 탭하면 색 전환</span>
+    </span>
+  </button>
+
+  <button class="btn" onclick="openSpeaker()">
+    <span class="emoji">🔊</span>
+    <span>스피커 (사이렌 소리)
+      <span class="desc">큰 소리 재생 · 잡음·먹먹함 확인</span>
+    </span>
+  </button>
+
+  <button class="btn" onclick="openTouch()">
+    <span class="emoji">✍️</span>
+    <span>터치 검사
+      <span class="desc">화면을 문질러 끊김·먹통 구간 확인 (멀티터치 지원)</span>
+    </span>
+  </button>
+</div>
+
+<!-- 색상(액정) -->
+<div id="color" class="screen">
+  <div id="colorFill"></div>
+  <div class="hint" id="colorHint">화면을 탭하면 색이 바뀝니다</div>
+  <div id="colorName">흰색</div>
+  <button class="close" onclick="closeScreen('color')">✕</button>
+</div>
+
+<!-- 스피커 -->
+<div id="speaker" class="screen">
+  <div class="wrap">
+    <div class="label">아래 버튼을 누르면 사이렌 소리가 납니다.<br>볼륨을 최대로 올려 확인하세요.</div>
+    <button id="sirenBtn" onclick="toggleSiren()">소리 재생</button>
+  </div>
+  <button class="close" onclick="closeScreen('speaker')">✕</button>
+</div>
+
+<!-- 터치 -->
+<div id="touch" class="screen">
+  <canvas id="touchCanvas"></canvas>
+  <div id="touchInfo">손가락으로 화면을 문지르세요 · 접점 0</div>
+  <button class="close" onclick="closeScreen('touch')">✕</button>
+</div>
+
+<script>
+// ---- 화면 전환 ----
+function show(id){ document.getElementById(id).classList.add('on'); }
+function closeScreen(id){
+  document.getElementById(id).classList.remove('on');
+  if (id === 'speaker') stopSiren();
+  document.body.style.background = '#111';
+}
+
+// ---- 액정: 단색 화면 ----
+var colors = [
+  ['흰색', '#ffffff'], ['검정', '#000000'], ['빨강', '#ff0000'],
+  ['초록', '#00ff00'], ['파랑', '#0000ff'], ['회색', '#808080'],
+  ['노랑', '#ffff00'], ['자홍', '#ff00ff'], ['청록', '#00ffff']
+];
+var ci = 0;
+function paint(){
+  var c = colors[ci];
+  document.getElementById('colorFill').style.background = c[1];
+  document.getElementById('colorName').textContent = c[0] + ' (' + (ci+1) + '/' + colors.length + ')';
+}
+function openColor(){ ci = 0; paint(); show('color');
+  var h = document.getElementById('colorHint'); h.style.opacity = 1;
+  setTimeout(function(){ h.style.opacity = 0; }, 1800);
+}
+document.getElementById('colorFill').addEventListener('click', function(){
+  ci = (ci + 1) % colors.length; paint();
+});
+
+// ---- 스피커: 웹오디오 사이렌 ----
+var audioCtx = null, osc = null, gain = null, lfo = null, sweep = null, playing = false;
+function openSpeaker(){ show('speaker'); }
+function toggleSiren(){ playing ? stopSiren() : startSiren(); }
+function startSiren(){
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    osc = audioCtx.createOscillator();
+    gain = audioCtx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.value = 700;
+    gain.gain.value = 0.9; // 크게
+    // 사이렌처럼 주파수를 위아래로 흔들기
+    lfo = audioCtx.createOscillator();
+    sweep = audioCtx.createGain();
+    lfo.frequency.value = 2;      // 초당 왕복
+    sweep.gain.value = 500;       // 흔들 폭
+    lfo.connect(sweep); sweep.connect(osc.frequency);
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.start(); lfo.start();
+    playing = true;
+    var b = document.getElementById('sirenBtn'); b.textContent = '정지'; b.classList.add('playing');
+  } catch(e){ alert('소리 재생 실패: ' + e); }
+}
+function stopSiren(){
+  if (!playing) return;
+  try { osc.stop(); lfo.stop(); } catch(e){}
+  playing = false;
+  var b = document.getElementById('sirenBtn');
+  if (b){ b.textContent = '소리 재생'; b.classList.remove('playing'); }
+}
+
+// ---- 터치 검사 ----
+var canvas, ctx;
+function openTouch(){
+  show('touch');
+  canvas = document.getElementById('touchCanvas');
+  var r = canvas.getBoundingClientRect();
+  canvas.width = r.width * (window.devicePixelRatio||1);
+  canvas.height = r.height * (window.devicePixelRatio||1);
+  ctx = canvas.getContext('2d');
+  ctx.scale(window.devicePixelRatio||1, window.devicePixelRatio||1);
+  ctx.fillStyle = '#000'; ctx.fillRect(0,0,canvas.width,canvas.height);
+}
+function draw(e){
+  e.preventDefault();
+  var t = e.touches;
+  document.getElementById('touchInfo').textContent = '손가락으로 화면을 문지르세요 · 접점 ' + t.length;
+  for (var i=0;i<t.length;i++){
+    ctx.beginPath();
+    ctx.fillStyle = ['#0f0','#0ff','#ff0','#f0f','#f66'][i % 5];
+    ctx.arc(t[i].clientX, t[i].clientY, 14, 0, Math.PI*2);
+    ctx.fill();
+  }
+}
+document.addEventListener('touchstart', function(e){ if(document.getElementById('touch').classList.contains('on')) draw(e); }, {passive:false});
+document.addEventListener('touchmove',  function(e){ if(document.getElementById('touch').classList.contains('on')) draw(e); }, {passive:false});
+</script>
+</body>
+</html>

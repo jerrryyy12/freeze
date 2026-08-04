@@ -39,6 +39,10 @@ String resolveAdbPath() {
   return 'adb'; // 최후: 시스템 PATH
 }
 
+/// 폰 브라우저로 여는 검사 페이지 (액정 색상·스피커 사이렌·터치).
+/// GitHub Pages 로 호스팅됨 (repo 의 docs/inspect.html).
+const String kInspectUrl = 'https://jerrryyy12.github.io/freeze/inspect.html';
+
 void main() {
   runApp(const InspectorApp());
 }
@@ -560,16 +564,10 @@ class _DashboardPageState extends State<DashboardPage> {
                         runSpacing: 8,
                         children: [
                           OutlinedButton.icon(
-                            onPressed: () => runAction(() =>
-                                _actions.samsungHardwareTest(device.serial)),
-                            icon: const Icon(Icons.phone_android, size: 16),
-                            label: const Text('삼성 테스트(*#0*#)'),
-                          ),
-                          OutlinedButton.icon(
-                            onPressed: () => runAction(
-                                () => _actions.speakerTest(device.serial)),
-                            icon: const Icon(Icons.volume_up, size: 16),
-                            label: const Text('스피커 소리'),
+                            onPressed: () => runAction(() => _actions
+                                .openWebInspector(device.serial, kInspectUrl)),
+                            icon: const Icon(Icons.smartphone, size: 16),
+                            label: const Text('폰 화면·소리 검사'),
                           ),
                           OutlinedButton.icon(
                             onPressed: () => runAction(
@@ -581,7 +579,7 @@ class _DashboardPageState extends State<DashboardPage> {
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        '삼성 테스트(*#0*#): 색상화면(액정)·수화부·터치. 스피커·진동은 옆 버튼으로 바로 실행됩니다.',
+                        '폰 화면·소리 검사: 폰 브라우저에 검사 페이지가 열립니다 → 색상화면(액정)·사이렌(스피커)·터치를 폰에서 직접 확인. (검수장 와이파이 인터넷 필요)',
                         style: TextStyle(
                             fontSize: 11, color: Colors.grey.shade600),
                       ),
