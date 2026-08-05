@@ -168,6 +168,16 @@ class AdbAutoDiagnostics {
   /// 검수장에 테스트용 와이파이 AP가 상시 있는 전제로, WiFi는 켜짐이 아니라
   /// 실제 AP 연결 + 인터넷 통신(핑)까지 확인.
   Future<Map<String, dynamic>> wireless(String serial) async {
+    // 검사 전에 무선 3종을 자동으로 켠다.
+    // (꺼져 있으면 통신 검증이 안 돼 불량으로 뜨므로, 프로그램이 직접 켜서 검사)
+    await _run(serial, ['shell', 'svc', 'wifi', 'enable']);
+    await _run(serial, ['shell', 'cmd', 'wifi', 'set-wifi-enabled', 'enabled']); // 최신 폴백
+    await _run(serial, ['shell', 'svc', 'bluetooth', 'enable']);
+    await _run(serial, ['shell', 'cmd', 'bluetooth_manager', 'enable']); // One UI 폴백
+    await _run(serial, ['shell', 'svc', 'nfc', 'enable']);
+    // 와이파이가 저장된 AP 에 다시 붙을 시간을 준다
+    await Future.delayed(const Duration(seconds: 4));
+
     final wifi = await _wifiCheck(serial);
     final bt = await _bluetoothCheck(serial);
     final nfc = await _nfcCheck(serial);
@@ -175,6 +185,11 @@ class AdbAutoDiagnostics {
     // 판정: WiFi 실제 통신 실패거나 NFC 칩이 죽었으면 불량
     final pass = wifi['connected'] == true &&
         (nfc['supported'] != true || nfc['alive'] == true);
+
+    // 와이파이 표시: 통신됨 / 연결 안됨(AP 확인) / 꺼짐 을 구분
+    final wifiLabel = wifi['connected'] == true
+        ? '정상'
+        : (wifi['on'] == true ? '연결 안됨' : '꺼짐');
 
     return {
       'test': 'wireless',
@@ -185,7 +200,7 @@ class AdbAutoDiagnostics {
         'bluetooth': bt,
         'nfc': nfc,
       },
-      'message': '와이파이 ${wifi['connected'] == true ? "정상" : "불량"} · '
+      'message': '와이파이 $wifiLabel · '
           '블루투스 ${bt['available'] == true ? "정상" : "불량"} · '
           'NFC ${nfc['supported'] != true ? "미지원" : (nfc['alive'] == true ? "정상" : "불량")}',
     };
