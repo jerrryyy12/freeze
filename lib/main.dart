@@ -213,6 +213,11 @@ class _DashboardPageState extends State<DashboardPage> {
             ),
           ),
           IconButton(
+            icon: const Icon(Icons.help_outline),
+            tooltip: 'USB 디버깅 켜는 법',
+            onPressed: _showDebuggingGuide,
+          ),
+          IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: '기기 새로고침',
             onPressed: _scanning ? null : _refreshDevices,
@@ -249,6 +254,89 @@ class _DashboardPageState extends State<DashboardPage> {
           const SizedBox(height: 16),
           OutlinedButton(
               onPressed: _refreshDevices, child: const Text('새로고침')),
+          const SizedBox(height: 8),
+          TextButton.icon(
+            onPressed: _showDebuggingGuide,
+            icon: const Icon(Icons.help_outline, size: 18),
+            label: const Text('폰이 안 잡히나요? USB 디버깅 켜는 법'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// USB 디버깅 켜는 법 안내 (초기화 폰마다 1회 필요).
+  void _showDebuggingGuide() {
+    Widget step(String n, String text) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 5),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 22,
+                height: 22,
+                alignment: Alignment.center,
+                decoration: const BoxDecoration(
+                    color: Color(0xFF1D9E75), shape: BoxShape.circle),
+                child: Text(n,
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold)),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                  child: Text(text,
+                      style: const TextStyle(fontSize: 13, height: 1.4))),
+            ],
+          ),
+        );
+
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('USB 디버깅 켜는 법'),
+        content: SizedBox(
+          width: 460,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  '초기화된 폰은 아래 과정을 한 번 거쳐야 자동검사가 됩니다. (삼성 기준, 약 30초)',
+                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+                const SizedBox(height: 12),
+                step('1',
+                    '초기 설정을 넘겨 홈 화면까지 진입 (와이파이·구글 로그인은 "나중에"로 건너뛰기 가능)'),
+                step('2', '설정 → 휴대전화 정보 → 소프트웨어 정보'),
+                step('3',
+                    '"빌드번호"를 7번 연속 탭 → (PIN 입력) → "개발자 모드가 켜졌습니다"'),
+                step('4', '설정 → 개발자 옵션 → "USB 디버깅" 켜기'),
+                step('5',
+                    'USB 케이블로 PC 연결 → 폰에 뜨는 "USB 디버깅을 허용하시겠습니까?" 에서 "이 컴퓨터에서 항상 허용" 체크 후 [허용]'),
+                step('6', '이 프로그램에서 새로고침(↻) → 폰 카드가 나타남'),
+                const SizedBox(height: 14),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                      color: Colors.orange.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(8)),
+                  child: const Text(
+                    '• 다른 제조사: 설정 → 휴대전화 정보 → "빌드번호" 7번 탭 (경로만 약간 다름)\n'
+                    '• 안 잡히면: 데이터 전송용 케이블인지 확인 · 폰 알림에서 USB를 "파일 전송(MTP)"으로 변경 · 다른 USB 포트 시도',
+                    style: TextStyle(fontSize: 11.5, height: 1.5),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('닫기')),
         ],
       ),
     );
