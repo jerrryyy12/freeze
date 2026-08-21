@@ -1,0 +1,13 @@
+{
+	"FileVersion": 3,
+	"EngineAssociation": "4.27",
+	"Category": "",
+	"Description": "발로란트 스킨 미리보기/체험 (개인용). 무기 감상 + 사격 + 킬사운드 + 마무리 모션(피니셔) 프리뷰. 블루프린트 전용 프로젝트.",
+	"Modules": [],
+	"Plugins": [
+		{
+			"Name": "ModelingToolsEditorMode",
+			"Enabled": true
+		}
+	]
+}

@@ -1,0 +1,19 @@
+# Unreal Engine 생성물 (커밋 제외)
+Binaries/
+Build/
+DerivedDataCache/
+Intermediate/
+Saved/
+.vs/
+*.VC.db
+*.opensdf
+*.opendb
+*.sdf
+*.sln
+*.suo
+*.xcodeproj
+*.xcworkspace
+
+# 추출한 게임 에셋은 절대 커밋하지 말 것 (저작권/용량)
+# Content/Valorant/ 이하 임포트한 발로란트 에셋은 로컬에만 두세요.
+Content/Valorant/
