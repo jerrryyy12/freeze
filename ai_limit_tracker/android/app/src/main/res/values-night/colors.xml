@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="widget_bg">#F21F1E24</color>
-    <color name="widget_text">#E6E1E5</color>
-    <color name="widget_subtext">#B0AAB8</color>
-    <color name="widget_track">#33FFFFFF</color>
+    <color name="widget_bg">#FF1C1C1F</color>
+    <color name="widget_text">#EDEDED</color>
+    <color name="widget_subtext">#9A9A9F</color>
+    <color name="widget_track">#2E2E33</color>
 </resources>

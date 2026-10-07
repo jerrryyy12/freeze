@@ -1,4 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 공식 상태 페이지 확인 -->
+    <uses-permission android:name="android.permission.INTERNET" />
     <!-- 리셋 알림 (안드로이드 13+ 은 실행 중 권한 요청) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- 리셋 시각에 정확히 알림·위젯 갱신 -->

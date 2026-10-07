@@ -1,7 +1,7 @@
 name: ai_limit_tracker
 description: "Claude Code · Codex 사용 한도 트래커 (안드로이드 + 홈 화면 위젯)"
 publish_to: 'none'
-version: 0.1.0+1
+version: 0.2.0+2
 
 environment:
   sdk: ^3.13.5

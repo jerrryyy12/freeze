@@ -1,220 +1,396 @@
 import 'dart:convert';
+import 'dart:math' as math;
 
-/// 주간 한도 주기.
-const Duration kWeek = Duration(days: 7);
+const Duration kSessionLength = Duration(hours: 5);
+const Duration kWeekLength = Duration(days: 7);
 
-/// 추적 대상 하나(Claude Code / Codex)의 한도 상태.
+enum WindowKind { session, weekly }
+
+/// 한도 창 하나(5시간 세션 또는 주간).
 ///
-/// 저장되는 값은 "사실"(리셋 시각, 기록한 사용량 등)뿐이고,
-/// 지금 사용 가능한지·남은 시간 같은 건 매번 현재 시각으로 계산한다.
-/// 안드로이드 위젯(Kotlin)도 같은 JSON 을 읽어 같은 규칙으로 계산하므로
-/// 필드 이름을 바꾸면 LimitWidgetProvider.kt 도 함께 바꿔야 한다.
+/// 저장하는 건 "마지막으로 확인한 사용량과 그때의 리셋 시각"뿐이고,
+/// 지금 남은 양·소진 예상 등은 현재 시각으로 매번 계산한다.
+/// 안드로이드 위젯(TrackerCore.kt)도 같은 JSON·같은 규칙으로 계산하므로
+/// 필드 이름이나 규칙을 바꾸면 Kotlin 쪽도 함께 바꿔야 한다.
+class LimitWindow {
+  LimitWindow(this.kind, {this.usedPct, this.resetAt, this.updatedAt});
+
+  final WindowKind kind;
+
+  /// 사용량(%) — 마지막 확인 시점 기준.
+  int? usedPct;
+
+  /// 리셋 시각. 주간은 7일마다 반복되는 기준점으로도 쓴다.
+  DateTime? resetAt;
+
+  /// usedPct 를 기록한 시각.
+  DateTime? updatedAt;
+
+  Duration get length =>
+      kind == WindowKind.session ? kSessionLength : kWeekLength;
+
+  bool get configured => usedPct != null || resetAt != null;
+
+  /// 지금 진행 중인 창의 리셋 시각. 세션이 끝났거나 모르면 null.
+  DateTime? currentReset(DateTime now) {
+    final r = resetAt;
+    if (r == null) return null;
+    if (kind == WindowKind.session) return r.isAfter(now) ? r : null;
+    return nextPeriodic(r, kWeekLength, now);
+  }
+
+  /// 지금 기준 사용량. 기록 이후 리셋됐으면 0.
+  int? usedNow(DateTime now) {
+    final used = usedPct;
+    if (used == null) return null;
+    final r = resetAt;
+    if (r == null) return used;
+    if (kind == WindowKind.session) return r.isAfter(now) ? used : 0;
+    final reset = currentReset(now)!;
+    final start = reset.subtract(kWeekLength);
+    final at = updatedAt;
+    if (at != null && at.isBefore(start)) return 0;
+    return used;
+  }
+
+  int? remainingNow(DateTime now) {
+    final u = usedNow(now);
+    return u == null ? null : 100 - u;
+  }
+
+  /// 지금까지의 사용 속도로 계산한 페이스.
+  Pace pace(DateTime now) {
+    final reset = currentReset(now);
+    final used = usedNow(now);
+    final at = updatedAt;
+    if (reset == null || used == null || at == null) {
+      return const Pace.unknown();
+    }
+    if (used >= 100) return Pace.exhausted(reset);
+    final start = reset.subtract(length);
+    final elapsed = at.difference(start);
+    if (used <= 0 || elapsed <= Duration.zero || at.isAfter(reset)) {
+      return const Pace.plenty();
+    }
+    // 사용량은 창 시작 시점에 0 이었으므로 (사용량 / 경과시간) 이 평균 속도.
+    final runOut = start.add(elapsed * (100 / used));
+    if (runOut.isBefore(reset)) return Pace.runsOut(runOut);
+    final projected = used * length.inSeconds / elapsed.inSeconds;
+    return projected <= 70 ? const Pace.plenty() : const Pace.onPace();
+  }
+
+  /// 새로 확인한 값 기록.
+  void record({
+    required int usedPct,
+    DateTime? resetAt,
+    required DateTime now,
+  }) {
+    this.usedPct = usedPct.clamp(0, 100);
+    if (resetAt != null) this.resetAt = resetAt;
+    updatedAt = now;
+  }
+
+  void clear() {
+    usedPct = null;
+    resetAt = null;
+    updatedAt = null;
+  }
+
+  Map<String, dynamic> toJson() => {
+    'usedPct': usedPct,
+    'resetAt': _ms(resetAt),
+    'updatedAt': _ms(updatedAt),
+  };
+
+  static LimitWindow fromJson(WindowKind kind, Object? j) {
+    if (j is! Map<String, dynamic>) return LimitWindow(kind);
+    return LimitWindow(
+      kind,
+      usedPct: (j['usedPct'] as num?)?.toInt(),
+      resetAt: _dt(j['resetAt']),
+      updatedAt: _dt(j['updatedAt']),
+    );
+  }
+}
+
+enum PaceKind { unknown, plenty, onPace, runsOut, exhausted }
+
+class Pace {
+  const Pace._(this.kind, [this.at]);
+  const Pace.unknown() : this._(PaceKind.unknown);
+  const Pace.plenty() : this._(PaceKind.plenty);
+  const Pace.onPace() : this._(PaceKind.onPace);
+  const Pace.runsOut(DateTime at) : this._(PaceKind.runsOut, at);
+  const Pace.exhausted(DateTime resetAt) : this._(PaceKind.exhausted, resetAt);
+
+  final PaceKind kind;
+
+  /// runsOut: 소진 예상 시각, exhausted: 다시 풀리는 시각.
+  final DateTime? at;
+
+  bool get warning => kind == PaceKind.runsOut || kind == PaceKind.exhausted;
+}
+
 class ServiceState {
   ServiceState({
     required this.id,
     required this.name,
-    this.sessionHours = 5,
-    this.sessionResetAt,
-    this.sessionPct,
-    this.sessionLimited = false,
-    this.weeklyAnchor,
-    this.weeklyPct,
-    this.weeklyPctUntil,
-    this.weeklyLimitedUntil,
-  });
+    this.plan,
+    LimitWindow? session,
+    LimitWindow? weekly,
+  }) : session = session ?? LimitWindow(WindowKind.session),
+       weekly = weekly ?? LimitWindow(WindowKind.weekly);
 
   final String id;
   final String name;
+  String? plan;
+  final LimitWindow session;
+  final LimitWindow weekly;
 
-  /// 세션(롤링) 한도 길이. 두 서비스 모두 5시간.
-  final int sessionHours;
+  LimitWindow window(WindowKind k) =>
+      k == WindowKind.session ? session : weekly;
 
-  /// 현재 세션이 리셋되는 시각. null 이면 세션 시작 전.
-  DateTime? sessionResetAt;
+  DateTime? get lastUpdated {
+    final a = session.updatedAt, b = weekly.updatedAt;
+    if (a == null) return b;
+    if (b == null) return a;
+    return a.isAfter(b) ? a : b;
+  }
 
-  /// 세션 사용량(%) — 사용자가 /usage, /status 보고 입력.
-  int? sessionPct;
+  /// 위젯·정렬에 쓰는 "더 빠듯한" 창 — 남은 양이 적은 쪽(같으면 주간).
+  LimitWindow tighter(DateTime now) {
+    final s = session.remainingNow(now), w = weekly.remainingNow(now);
+    if (s == null) return weekly;
+    if (w == null) return session;
+    return s < w ? session : weekly;
+  }
 
-  /// 세션 한도 도달 여부(현재 세션에만 유효).
-  bool sessionLimited;
-
-  /// 알고 있는 주간 리셋 시각 하나. 7일 주기로 앞뒤로 굴려서 다음 리셋을 구한다.
-  DateTime? weeklyAnchor;
-
-  /// 주간 사용량(%)과, 그 값이 유효한 기한(기록 당시의 다음 주간 리셋).
-  int? weeklyPct;
-  DateTime? weeklyPctUntil;
-
-  /// 주간 한도 도달 시 막혀 있는 기한.
-  DateTime? weeklyLimitedUntil;
-
-  // ───────────── 계산 ─────────────
-
-  bool sessionActive(DateTime now) =>
-      sessionResetAt != null && now.isBefore(sessionResetAt!);
-
-  bool sessionBlocked(DateTime now) => sessionActive(now) && sessionLimited;
-
-  /// 이번 세션 사용량. 세션이 끝났으면 null.
-  int? effectiveSessionPct(DateTime now) =>
-      sessionActive(now) ? sessionPct : null;
-
-  DateTime? nextWeeklyReset(DateTime now) =>
-      weeklyAnchor == null ? null : nextPeriodic(weeklyAnchor!, kWeek, now);
-
-  int? effectiveWeeklyPct(DateTime now) =>
-      (weeklyPct != null &&
-          weeklyPctUntil != null &&
-          now.isBefore(weeklyPctUntil!))
-      ? weeklyPct
-      : null;
-
-  bool weeklyBlocked(DateTime now) =>
-      weeklyLimitedUntil != null && now.isBefore(weeklyLimitedUntil!);
-
-  /// 지금 막혀 있다면 풀리는 시각(둘 다 막혔으면 더 늦은 쪽). 사용 가능하면 null.
-  DateTime? blockedUntil(DateTime now) {
-    DateTime? until;
-    if (weeklyBlocked(now)) until = weeklyLimitedUntil;
-    if (sessionBlocked(now) &&
-        (until == null || sessionResetAt!.isAfter(until))) {
-      until = sessionResetAt;
+  /// 급한 순 정렬 기준: 소진 예상이 빠를수록, 남은 양이 적을수록 먼저.
+  (int, int) urgency(DateTime now) {
+    var soonest = 1 << 62;
+    for (final w in [session, weekly]) {
+      final p = w.pace(now);
+      if (p.warning && p.at != null) {
+        soonest = math.min(soonest, p.at!.millisecondsSinceEpoch);
+      }
     }
-    return until;
+    final rem = [
+      session.remainingNow(now),
+      weekly.remainingNow(now),
+    ].whereType<int>().fold<int>(101, math.min);
+    return (soonest, rem);
   }
-
-  Availability availability(DateTime now) {
-    if (weeklyBlocked(now)) return Availability.weeklyLimited;
-    if (sessionBlocked(now)) return Availability.sessionLimited;
-    if (sessionActive(now)) return Availability.inSession;
-    return Availability.available;
-  }
-
-  // ───────────── 조작 ─────────────
-
-  /// 지금부터 세션 시작(첫 메시지를 보낸 시점).
-  void startSession(DateTime now) {
-    sessionResetAt = now.add(Duration(hours: sessionHours));
-    sessionPct = null;
-    sessionLimited = false;
-  }
-
-  /// CLI 에 표시된 세션 리셋 시각을 직접 입력.
-  void setSessionReset(DateTime resetAt, DateTime now) {
-    final wasActive = sessionActive(now);
-    sessionResetAt = resetAt;
-    if (!wasActive) {
-      sessionPct = null;
-      sessionLimited = false;
-    }
-  }
-
-  void clearSession() {
-    sessionResetAt = null;
-    sessionPct = null;
-    sessionLimited = false;
-  }
-
-  /// 세션 한도 도달 표시. 세션이 없으면 지금부터 세션을 잡는다.
-  void setSessionLimited(bool limited, DateTime now) {
-    if (limited && !sessionActive(now)) startSession(now);
-    sessionLimited = limited;
-    if (limited) sessionPct = 100;
-  }
-
-  void setSessionPct(int pct, DateTime now) {
-    if (!sessionActive(now)) startSession(now);
-    sessionPct = pct.clamp(0, 100);
-  }
-
-  void setWeeklyReset(DateTime resetAt, DateTime now) {
-    weeklyAnchor = resetAt;
-    // 리셋 시각이 바뀌면 그 기준으로 기록해 둔 기한도 맞춘다.
-    final next = nextWeeklyReset(now)!;
-    if (weeklyPct != null) weeklyPctUntil = next;
-    if (weeklyBlocked(now)) weeklyLimitedUntil = next;
-  }
-
-  /// 주간 리셋 시각을 모르면 false 를 반환(리셋 시각 설정이 먼저 필요).
-  bool setWeeklyPct(int pct, DateTime now) {
-    final next = nextWeeklyReset(now);
-    if (next == null) return false;
-    weeklyPct = pct.clamp(0, 100);
-    weeklyPctUntil = next;
-    return true;
-  }
-
-  bool setWeeklyLimited(bool limited, DateTime now) {
-    if (!limited) {
-      weeklyLimitedUntil = null;
-      return true;
-    }
-    final next = nextWeeklyReset(now);
-    if (next == null) return false;
-    weeklyLimitedUntil = next;
-    weeklyPct = 100;
-    weeklyPctUntil = next;
-    return true;
-  }
-
-  // ───────────── 직렬화 ─────────────
 
   Map<String, dynamic> toJson() => {
     'id': id,
     'name': name,
-    'sessionHours': sessionHours,
-    'sessionResetAt': _ms(sessionResetAt),
-    'sessionPct': sessionPct,
-    'sessionLimited': sessionLimited,
-    'weeklyAnchor': _ms(weeklyAnchor),
-    'weeklyPct': weeklyPct,
-    'weeklyPctUntil': _ms(weeklyPctUntil),
-    'weeklyLimitedUntil': _ms(weeklyLimitedUntil),
+    'plan': plan,
+    'session': session.toJson(),
+    'weekly': weekly.toJson(),
   };
 
-  factory ServiceState.fromJson(Map<String, dynamic> j) => ServiceState(
+  static ServiceState fromJson(Map<String, dynamic> j) => ServiceState(
     id: j['id'] as String,
     name: j['name'] as String,
-    sessionHours: (j['sessionHours'] as num?)?.toInt() ?? 5,
-    sessionResetAt: _dt(j['sessionResetAt']),
-    sessionPct: (j['sessionPct'] as num?)?.toInt(),
-    sessionLimited: j['sessionLimited'] as bool? ?? false,
-    weeklyAnchor: _dt(j['weeklyAnchor']),
-    weeklyPct: (j['weeklyPct'] as num?)?.toInt(),
-    weeklyPctUntil: _dt(j['weeklyPctUntil']),
-    weeklyLimitedUntil: _dt(j['weeklyLimitedUntil']),
+    plan: j['plan'] as String?,
+    session: LimitWindow.fromJson(WindowKind.session, j['session']),
+    weekly: LimitWindow.fromJson(WindowKind.weekly, j['weekly']),
   );
 }
 
-enum Availability { available, inSession, sessionLimited, weeklyLimited }
+class AlertSetting {
+  AlertSetting({this.enabled = false, this.threshold = 10});
+
+  bool enabled;
+
+  /// 주간 잔여가 이 값(%) 이하로 떨어지면 알림.
+  int threshold;
+
+  /// 이미 알린 주간 창(그 창의 리셋 시각) — 같은 창에서 중복 알림 방지.
+  int? alertedFor;
+
+  Map<String, dynamic> toJson() => {
+    'enabled': enabled,
+    'threshold': threshold,
+    'alertedFor': alertedFor,
+  };
+
+  static AlertSetting fromJson(Object? j) {
+    if (j is! Map<String, dynamic>) return AlertSetting();
+    return AlertSetting(
+      enabled: j['enabled'] as bool? ?? false,
+      threshold: (j['threshold'] as num?)?.toInt() ?? 10,
+    )..alertedFor = (j['alertedFor'] as num?)?.toInt();
+  }
+}
+
+class Settings {
+  bool absoluteTime = false;
+
+  /// true: 급한 순, false: 사용자 지정 순서(customOrder).
+  bool urgentFirst = true;
+  List<String> customOrder = ['codex', 'claude'];
+  bool resetAlerts = true;
+  Map<String, AlertSetting> alerts = {};
+
+  AlertSetting alertFor(String id) => alerts.putIfAbsent(id, AlertSetting.new);
+
+  Map<String, dynamic> toJson() => {
+    'absoluteTime': absoluteTime,
+    'urgentFirst': urgentFirst,
+    'customOrder': customOrder,
+    'resetAlerts': resetAlerts,
+    'alerts': alerts.map((k, v) => MapEntry(k, v.toJson())),
+  };
+
+  static Settings fromJson(Object? j) {
+    final s = Settings();
+    if (j is! Map<String, dynamic>) return s;
+    s.absoluteTime = j['absoluteTime'] as bool? ?? false;
+    s.urgentFirst = j['urgentFirst'] as bool? ?? true;
+    s.customOrder =
+        (j['customOrder'] as List?)?.cast<String>() ?? s.customOrder;
+    s.resetAlerts = j['resetAlerts'] as bool? ?? true;
+    final a = j['alerts'];
+    if (a is Map<String, dynamic>) {
+      s.alerts = a.map((k, v) => MapEntry(k, AlertSetting.fromJson(v)));
+    }
+    return s;
+  }
+}
+
+/// 통계용 기록 한 줄.
+class Snapshot {
+  Snapshot(this.at, this.service, this.kind, this.used);
+
+  final DateTime at;
+  final String service;
+  final WindowKind kind;
+  final int used;
+
+  Map<String, dynamic> toJson() => {
+    't': at.millisecondsSinceEpoch,
+    's': service,
+    'w': kind == WindowKind.session ? 's' : 'w',
+    'u': used,
+  };
+
+  static Snapshot? fromJson(Object? j) {
+    if (j is! Map<String, dynamic>) return null;
+    try {
+      return Snapshot(
+        DateTime.fromMillisecondsSinceEpoch((j['t'] as num).toInt()),
+        j['s'] as String,
+        j['w'] == 's' ? WindowKind.session : WindowKind.weekly,
+        (j['u'] as num).toInt(),
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+}
 
 class TrackerState {
-  TrackerState(this.services);
+  TrackerState(this.services, this.settings, this.history);
 
   final List<ServiceState> services;
+  final Settings settings;
+  final List<Snapshot> history;
 
-  static TrackerState initial() => TrackerState([
-    ServiceState(id: 'claude', name: 'Claude Code'),
-    ServiceState(id: 'codex', name: 'Codex'),
-  ]);
+  static const maxHistory = 1000;
+
+  static TrackerState initial() => TrackerState(
+    [
+      ServiceState(id: 'codex', name: 'Codex'),
+      ServiceState(id: 'claude', name: 'Claude Code'),
+    ],
+    Settings(),
+    [],
+  );
+
+  ServiceState service(String id) => services.firstWhere((s) => s.id == id);
+
+  /// 설정에 따른 표시 순서.
+  List<ServiceState> ordered(DateTime now) {
+    final list = [...services];
+    if (settings.urgentFirst) {
+      list.sort((a, b) {
+        final ua = a.urgency(now), ub = b.urgency(now);
+        final c = ua.$1.compareTo(ub.$1);
+        return c != 0 ? c : ua.$2.compareTo(ub.$2);
+      });
+    } else {
+      int idx(ServiceState s) {
+        final i = settings.customOrder.indexOf(s.id);
+        return i < 0 ? 999 : i;
+      }
+
+      list.sort((a, b) => idx(a).compareTo(idx(b)));
+    }
+    return list;
+  }
+
+  DateTime? get lastUpdated => services
+      .map((s) => s.lastUpdated)
+      .whereType<DateTime>()
+      .fold<DateTime?>(null, (a, b) => a == null || b.isAfter(a) ? b : a);
+
+  /// 사용량 기록 + 통계용 스냅샷 추가.
+  void record(
+    String serviceId,
+    WindowKind kind, {
+    required int usedPct,
+    DateTime? resetAt,
+    required DateTime now,
+  }) {
+    service(serviceId)
+        .window(kind)
+        .record(usedPct: usedPct, resetAt: resetAt, now: now);
+    history.add(Snapshot(now, serviceId, kind, usedPct.clamp(0, 100)));
+    if (history.length > maxHistory) {
+      history.removeRange(0, history.length - maxHistory);
+    }
+  }
+
+  /// 주간 잔여 알림을 보내야 하는 서비스들 — 반환하면서 "알림 보냄"으로 표시.
+  List<(ServiceState, int)> takeThresholdAlerts(DateTime now) {
+    final out = <(ServiceState, int)>[];
+    for (final s in services) {
+      final a = settings.alertFor(s.id);
+      final rem = s.weekly.remainingNow(now);
+      final reset = s.weekly.currentReset(now);
+      if (!a.enabled || rem == null || rem > a.threshold) continue;
+      final key = reset?.millisecondsSinceEpoch ?? 0;
+      if (a.alertedFor == key) continue;
+      a.alertedFor = key;
+      out.add((s, rem));
+    }
+    return out;
+  }
 
   String encode() => jsonEncode({
-    'v': 1,
+    'v': 2,
     'services': services.map((s) => s.toJson()).toList(),
+    'settings': settings.toJson(),
+    'history': history.map((h) => h.toJson()).toList(),
   });
 
-  /// 저장된 JSON 을 읽는다. 없거나 깨졌으면 초기 상태.
-  /// 기본 두 서비스는 항상 존재하도록 보정한다.
+  /// 저장된 JSON 을 읽는다. 없거나 깨졌거나 옛 형식이면 초기 상태.
   static TrackerState decode(String? raw) {
     final base = initial();
     if (raw == null || raw.isEmpty) return base;
     try {
       final j = jsonDecode(raw) as Map<String, dynamic>;
+      if (j['v'] != 2) return base;
       final loaded = {
         for (final s in (j['services'] as List))
           (s as Map<String, dynamic>)['id'] as String: ServiceState.fromJson(s),
       };
-      return TrackerState([for (final s in base.services) loaded[s.id] ?? s]);
+      return TrackerState(
+        [for (final s in base.services) loaded[s.id] ?? s],
+        Settings.fromJson(j['settings']),
+        [for (final h in (j['history'] as List? ?? [])) ?Snapshot.fromJson(h)],
+      );
     } catch (_) {
       return base;
     }
@@ -246,7 +422,7 @@ DateTime? _dt(Object? v) =>
 
 // ───────────── 표시용 ─────────────
 
-/// "2시간 13분", "3일 4시간", "45초"
+/// "2시간 19분", "1일 14시간", "45초"
 String formatRemaining(Duration d) {
   if (d.isNegative) d = Duration.zero;
   final days = d.inDays;
@@ -264,11 +440,37 @@ const _weekdays = ['월', '화', '수', '목', '금', '토', '일'];
 
 String _two(int n) => n.toString().padLeft(2, '0');
 
-/// 오늘이면 "15:30", 아니면 "10/12(일) 15:30"
+/// 오늘이면 "15:30", 내일이면 "내일 15:30", 일주일 안이면 "수 10:27", 그 밖엔 "10/12 10:27"
 String formatClock(DateTime t, DateTime now) {
   final hm = '${_two(t.hour)}:${_two(t.minute)}';
-  final sameDay =
-      t.year == now.year && t.month == now.month && t.day == now.day;
-  if (sameDay) return hm;
-  return '${t.month}/${t.day}(${_weekdays[t.weekday - 1]}) $hm';
+  final today = DateTime(now.year, now.month, now.day);
+  final day = DateTime(t.year, t.month, t.day);
+  final days = day.difference(today).inDays;
+  if (days == 0) return hm;
+  if (days == 1) return '내일 $hm';
+  if (days > 1 && days < 7) return '${_weekdays[t.weekday - 1]} $hm';
+  return '${t.month}/${t.day} $hm';
 }
+
+/// "2시간 19분 후 리셋" 또는 (절대 시각 설정 시) "수 10:27 리셋"
+String formatReset(DateTime reset, DateTime now, {required bool absolute}) =>
+    absolute
+    ? '${formatClock(reset, now)} 리셋'
+    : '${formatRemaining(reset.difference(now))} 후 리셋';
+
+/// "방금 전", "5분 전", "3시간 전", "2일 전"
+String formatAgo(DateTime t, DateTime now) {
+  final d = now.difference(t);
+  if (d.inMinutes < 1) return '방금 전';
+  if (d.inHours < 1) return '${d.inMinutes}분 전';
+  if (d.inDays < 1) return '${d.inHours}시간 전';
+  return '${d.inDays}일 전';
+}
+
+String paceText(Pace p, DateTime now) => switch (p.kind) {
+  PaceKind.unknown => '',
+  PaceKind.plenty => '여유 있음',
+  PaceKind.onPace => '적정 페이스',
+  PaceKind.runsOut => '${formatClock(p.at!, now)} 소진 예상',
+  PaceKind.exhausted => '모두 사용함',
+};

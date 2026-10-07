@@ -3,6 +3,8 @@ package com.jerrryyy12.ai_limit_tracker
 import android.Manifest
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
+import android.content.Intent
+import android.net.Uri
 import android.content.pm.PackageManager
 import android.os.Build
 import io.flutter.embedding.android.FlutterActivity
@@ -24,6 +26,23 @@ class MainActivity : FlutterActivity() {
                     }
                     "requestNotificationPermission" -> requestNotificationPermission(result)
                     "requestPinWidget" -> result.success(requestPinWidget())
+                    "notify" -> {
+                        TrackerCore.notifyNow(
+                            this,
+                            call.argument<String>("id") ?: "app",
+                            call.argument<String>("title") ?: "",
+                            call.argument<String>("body") ?: "",
+                        )
+                        result.success(null)
+                    }
+                    "openUrl" -> {
+                        try {
+                            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(call.arguments as String)))
+                        } catch (e: Exception) {
+                            // 열 수 있는 앱이 없으면 무시
+                        }
+                        result.success(null)
+                    }
                     else -> result.notImplemented()
                 }
             }

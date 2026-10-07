@@ -50,4 +50,26 @@ class Storage {
       return false;
     }
   }
+
+  /// 즉시 알림 하나 띄우기(사용량 기준 알림 등).
+  static Future<void> notify(String id, String title, String body) async {
+    try {
+      await _channel.invokeMethod<void>('notify', {
+        'id': id,
+        'title': title,
+        'body': body,
+      });
+    } on MissingPluginException {
+      // 테스트 환경
+    }
+  }
+
+  /// 브라우저로 링크 열기.
+  static Future<void> openUrl(String url) async {
+    try {
+      await _channel.invokeMethod<void>('openUrl', url);
+    } on MissingPluginException {
+      // 테스트 환경
+    }
+  }
 }

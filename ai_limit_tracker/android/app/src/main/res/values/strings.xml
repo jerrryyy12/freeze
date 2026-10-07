@@ -1,4 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="widget_description">Claude Code·Codex 한도와 리셋까지 남은 시간</string>
+    <string name="widget_description">Codex·Claude Code 남은 한도와 리셋 시각</string>
 </resources>
