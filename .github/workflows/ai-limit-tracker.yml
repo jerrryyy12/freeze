@@ -1,0 +1,78 @@
+name: AI 리미터 트래커 (Android APK)
+
+# ai_limit_tracker/ 가 바뀌어 푸시되거나 Actions 탭에서 수동 실행 시 APK 빌드.
+# 결과 APK 는 Releases 의 "tracker-latest"(사전 릴리스)에 항상 최신본으로 올라가므로
+# 폰 브라우저에서 바로 받아 설치할 수 있다.
+on:
+  push:
+    paths:
+      - 'ai_limit_tracker/**'
+      - '.github/workflows/ai-limit-tracker.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write # 릴리스에 APK 첨부
+
+concurrency:
+  group: ai-limit-tracker
+  cancel-in-progress: false
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ai_limit_tracker
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test
+        run: flutter test
+
+      - name: Build APK (release)
+        run: |
+          flutter build apk --release
+          cp build/app/outputs/flutter-apk/app-release.apk AI-Limit-Tracker.apk
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AI-Limit-Tracker-APK
+          path: ai_limit_tracker/AI-Limit-Tracker.apk
+
+      - name: Publish to "tracker-latest" release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: tracker-latest
+          target_commitish: ${{ github.sha }}
+          name: AI 리미터 트래커 (최신 APK)
+          prerelease: true
+          make_latest: false
+          files: ai_limit_tracker/AI-Limit-Tracker.apk
+          body: |
+            Claude Code · Codex 사용 한도 트래커 (안드로이드 + 홈 화면 위젯)
+
+            **설치:** 폰에서 아래 `AI-Limit-Tracker.apk` 를 눌러 받은 뒤 열기 →
+            "출처를 알 수 없는 앱 설치" 허용 → 설치.
+            새 버전도 같은 방법으로 덮어 설치하면 기록이 유지됩니다.
+
+            빌드 커밋: ${{ github.sha }}

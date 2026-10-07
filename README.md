@@ -42,3 +42,8 @@ Actions 탭에서 진행 상황을 보고, 완료되면 Releases 또는 Artifact
 ## 이어서 개발하기
 
 `HANDOFF.md`에 프로젝트 전체 맥락과 다음 할 일이 정리되어 있습니다.
+
+## 함께 있는 앱
+
+- [`ai_limit_tracker/`](ai_limit_tracker/) — Claude Code · Codex 사용 한도 트래커
+  (안드로이드 앱 + 홈 화면 위젯). APK 는 Releases 의 "AI 리미터 트래커 (최신 APK)".
